@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(dart analyze *)",
+      "Bash(flutter test *)",
+      "Bash(find \"$HOME/AppData/Local/Pub/Cache\" -iname \"position.dart\" -path \"*geolocator*\" 2>/dev/null | head -5)",
+      "Read(//c/Users/thewa/AppData/Local/Pub/Cache/**)",
+      "Bash(grep -n \"timestamp\\\\|class Position\" \"/c/Users/thewa/AppData/Local/Pub/Cache/hosted/pub.dev/geolocator_platform_interface-4.2.8/lib/src/models/position.dart\" | head -20)",
+      "Read(//c/Users/thewa/AppData/Local/Pub/Cache/hosted/pub.dev/geolocator_platform_interface-4.2.8/lib/src/models/**)"
+    ]
+  }
+}
