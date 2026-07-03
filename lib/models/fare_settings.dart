@@ -32,7 +32,7 @@ class FareSettings {
         orElse: () => FareMode.standard,
       ),
       fuelEfficiencyKmPerLiter:
-          (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble() ?? 12.0,
+          (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble() ?? 11.0,
     );
   }
 }

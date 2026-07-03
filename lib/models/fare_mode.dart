@@ -9,7 +9,7 @@ enum FareMode {
   String get label {
     switch (this) {
       case FareMode.standard:
-        return '표준 미터 요금';
+        return '미터기 모드';
       case FareMode.carpool:
         return '카풀 모드';
     }
@@ -18,9 +18,9 @@ enum FareMode {
   String get description {
     switch (this) {
       case FareMode.standard:
-        return '서울시 중형택시 기준 거리·시간 병산 요금제';
+        return '서울시 요금제';
       case FareMode.carpool:
-        return '기본요금 3,000원 + 연비 기반 유류비 분담';
+        return '기본요금 3,000원 + 주행거리 할증';
     }
   }
 }
