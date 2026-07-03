@@ -7,6 +7,8 @@ workflows:
     integrations:
       app_store_connect: newtaxikey
     environment:
+      groups:
+        - ios_signing
       vars:
         APP_STORE_APPLE_ID: 6786974799
         BUNDLE_ID: com.tbmtbw.meter
@@ -20,7 +22,9 @@ workflows:
       - name: Set up keychain
         script: keychain initialize
       - name: Set up signing certificate
-        script: keychain add-certificates
+        script: |
+          echo $CM_CERTIFICATE | base64 --decode > /tmp/distribution.p12
+          keychain add-certificates -c /tmp/distribution.p12 -p "$CM_CERTIFICATE_PASSWORD"
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
