@@ -23,7 +23,8 @@ workflows:
         script: keychain initialize
       - name: Set up signing certificate
         script: |
-          echo $CM_CERTIFICATE | base64 --decode > /tmp/distribution.p12
+          printf '%s' "$CM_CERTIFICATE" | base64 --decode > /tmp/distribution.p12
+          openssl pkcs12 -in /tmp/distribution.p12 -noout -passin pass:"$CM_CERTIFICATE_PASSWORD"
           keychain add-certificates -c /tmp/distribution.p12 -p "$CM_CERTIFICATE_PASSWORD"
       - name: Fetch signing files
         script: |
