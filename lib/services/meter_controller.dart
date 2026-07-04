@@ -37,6 +37,7 @@ class _RecoveredFareMeter implements FareMeter {
     required double distanceDeltaMeters,
     required double slowTimeDeltaSeconds,
     required DateTime now,
+    bool isSuburban = false,
   }) {}
 }
 
@@ -95,6 +96,11 @@ class MeterController extends ChangeNotifier {
   /// saved before the app was killed mid-trip, rather than a normal stop.
   bool recoveredFromCrash = false;
 
+  /// Driver-toggled "시외" (suburban) surcharge, for trips that leave the
+  /// licensed service area. Only meaningful for [FareMode.standard] — there
+  /// are no surcharges in [FareMode.carpool].
+  bool suburbanSurchargeActive = false;
+
   String? gpsStatusMessage;
   String? errorMessage;
 
@@ -138,6 +144,14 @@ class MeterController extends ChangeNotifier {
     return end.difference(_startTime!);
   }
 
+  /// Toggled by the driver during a running standard-mode trip to mark the
+  /// current (and following) interval as driven outside the service area.
+  void setSuburbanSurcharge(bool active) {
+    if (state != MeterState.running) return;
+    suburbanSurchargeActive = active;
+    notifyListeners();
+  }
+
   Future<void> startTrip(FareSettings settings) async {
     errorMessage = null;
     final err = await LocationService.ensureReady();
@@ -179,6 +193,7 @@ class MeterController extends ChangeNotifier {
     _endTime = null;
     _tickCount = 0;
     _currentSpeedMps = 0;
+    suburbanSurchargeActive = false;
     recoveredFromCrash = false;
     _meter!.start(_startTime!);
     gpsStatusMessage = null;
@@ -241,6 +256,7 @@ class MeterController extends ChangeNotifier {
       distanceDeltaMeters: fix.distanceDeltaMeters,
       slowTimeDeltaSeconds: slowSeconds,
       now: position.timestamp,
+      isSuburban: suburbanSurchargeActive,
     );
     notifyListeners();
   }

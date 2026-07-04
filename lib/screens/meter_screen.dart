@@ -112,6 +112,16 @@ class _MeterScreenState extends State<MeterScreen> {
                 style: const TextStyle(color: Colors.black87),
               ),
             ),
+          if (_meter.mode == FareMode.standard)
+            Card(
+              margin: EdgeInsets.zero,
+              child: SwitchListTile(
+                title: const Text('시외 할증'),
+                subtitle: const Text('시계 외 지역 운행 구간에 20% 할증 적용'),
+                value: _meter.suburbanSurchargeActive,
+                onChanged: (value) => _meter.setSuburbanSurcharge(value),
+              ),
+            ),
           Expanded(
             child: Center(
               child: Column(

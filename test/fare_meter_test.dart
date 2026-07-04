@@ -143,6 +143,42 @@ void main() {
       );
       expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 120);
     });
+
+    test('suburban surcharge adds 20% to a pulse driven while flagged', () {
+      final meter = StandardFareMeter();
+      meter.start(_at(12));
+      meter.update(
+        distanceDeltaMeters: 1600 + 131,
+        slowTimeDeltaSeconds: 0,
+        now: _at(12, 5),
+        isSuburban: true,
+      );
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 120);
+    });
+
+    test('suburban surcharge does not apply to a pulse driven while unflagged', () {
+      final meter = StandardFareMeter();
+      meter.start(_at(12));
+      meter.update(
+        distanceDeltaMeters: 1600 + 131,
+        slowTimeDeltaSeconds: 0,
+        now: _at(12, 5),
+      );
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 100);
+    });
+
+    test('suburban and late-night surcharges stack multiplicatively', () {
+      final meter = StandardFareMeter();
+      meter.start(_at(23));
+      meter.update(
+        distanceDeltaMeters: 1600 + 131,
+        slowTimeDeltaSeconds: 0,
+        now: _at(23, 5),
+        isSuburban: true,
+      );
+      // Base: 4800 * 1.4 = 6720. Pulse: 100 * 1.4 * 1.2 = 168.
+      expect(meter.fareWon, 6720 + 168);
+    });
   });
 
   group('CarpoolFareMeter', () {
