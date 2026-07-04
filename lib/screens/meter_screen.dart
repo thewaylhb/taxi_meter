@@ -3,24 +3,32 @@ import 'package:flutter/material.dart';
 import '../models/fare_mode.dart';
 import '../services/meter_controller.dart';
 import '../services/settings_controller.dart';
+import '../services/trip_repository.dart';
 import '../utils/formatters.dart';
 
 class MeterScreen extends StatefulWidget {
   final SettingsController settingsController;
+  final TripRepository tripRepository;
 
-  const MeterScreen({super.key, required this.settingsController});
+  const MeterScreen({
+    super.key,
+    required this.settingsController,
+    required this.tripRepository,
+  });
 
   @override
   State<MeterScreen> createState() => _MeterScreenState();
 }
 
 class _MeterScreenState extends State<MeterScreen> {
-  final MeterController _meter = MeterController();
+  late final MeterController _meter =
+      MeterController(tripRepository: widget.tripRepository);
 
   @override
   void initState() {
     super.initState();
     _meter.addListener(_onChange);
+    _meter.recoverIfAny();
   }
 
   void _onChange() => setState(() {});
@@ -140,6 +148,18 @@ class _MeterScreenState extends State<MeterScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          if (_meter.recoveredFromCrash)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: 16),
+              color: Colors.amber.shade100,
+              child: const Text(
+                '앱이 예기치 않게 종료되어 이전 운행 기록을 복구했습니다. 정산을 완료해주세요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black87),
+              ),
+            ),
           Expanded(
             child: Center(
               child: Column(

@@ -10,6 +10,7 @@ import '../models/fare_settings.dart';
 class SettingsController extends ChangeNotifier {
   static const _keyMode = 'fare_mode';
   static const _keyFuelEfficiency = 'fuel_efficiency_km_per_liter';
+  static const _keyFuelPrice = 'fuel_price_per_liter_won';
 
   FareSettings _settings = FareSettings();
   FareSettings get settings => _settings;
@@ -18,12 +19,14 @@ class SettingsController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final modeName = prefs.getString(_keyMode);
     final efficiency = prefs.getDouble(_keyFuelEfficiency);
+    final fuelPrice = prefs.getDouble(_keyFuelPrice);
     _settings = FareSettings(
       mode: FareMode.values.firstWhere(
         (e) => e.name == modeName,
         orElse: () => FareMode.standard,
       ),
       fuelEfficiencyKmPerLiter: efficiency ?? 12.0,
+      fuelPricePerLiterWon: fuelPrice ?? 2000.0,
     );
     notifyListeners();
   }
@@ -40,5 +43,12 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyFuelEfficiency, kmPerLiter);
+  }
+
+  Future<void> setFuelPrice(double wonPerLiter) async {
+    _settings = _settings.copyWith(fuelPricePerLiterWon: wonPerLiter);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyFuelPrice, wonPerLiter);
   }
 }

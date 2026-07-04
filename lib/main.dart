@@ -5,6 +5,7 @@ import 'screens/history_screen.dart';
 import 'screens/meter_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/settings_controller.dart';
+import 'services/trip_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,7 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   final SettingsController _settingsController = SettingsController();
+  final TripRepository _tripRepository = TripRepository();
   int _tabIndex = 0;
   bool _loaded = false;
 
@@ -55,8 +57,11 @@ class _RootScreenState extends State<RootScreen> {
     }
 
     final screens = [
-      MeterScreen(settingsController: _settingsController),
-      const HistoryScreen(),
+      MeterScreen(
+        settingsController: _settingsController,
+        tripRepository: _tripRepository,
+      ),
+      HistoryScreen(tripRepository: _tripRepository),
       SettingsScreen(settingsController: _settingsController),
     ];
 

@@ -14,6 +14,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _efficiencyController;
+  late final TextEditingController _fuelPriceController;
 
   @override
   void initState() {
@@ -23,6 +24,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       text: widget.settingsController.settings.fuelEfficiencyKmPerLiter
           .toStringAsFixed(1),
     );
+    _fuelPriceController = TextEditingController(
+      text: widget.settingsController.settings.fuelPricePerLiterWon
+          .toStringAsFixed(0),
+    );
   }
 
   void _onChange() => setState(() {});
@@ -31,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     widget.settingsController.removeListener(_onChange);
     _efficiencyController.dispose();
+    _fuelPriceController.dispose();
     super.dispose();
   }
 
@@ -63,8 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (settings.mode == FareMode.carpool) ...[
             const Divider(height: 32),
             Text('차량 연비 설정', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            const Text('연료 가격은 리터당 2,000원 고정으로 계산됩니다.'),
             const SizedBox(height: 12),
             TextField(
               controller: _efficiencyController,
@@ -82,6 +86,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _saveEfficiency(_efficiencyController.text),
+                child: const Text('저장'),
+              ),
+            ),
+            const Divider(height: 32),
+            Text('유가 설정', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _fuelPriceController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: '유가 (원/L)',
+                border: OutlineInputBorder(),
+                suffixText: '원/L',
+              ),
+              onSubmitted: _saveFuelPrice,
+              onEditingComplete: () => _saveFuelPrice(_fuelPriceController.text),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _saveFuelPrice(_fuelPriceController.text),
                 child: const Text('저장'),
               ),
             ),
@@ -103,6 +129,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('연비 설정이 저장되었습니다.')),
+    );
+  }
+
+  void _saveFuelPrice(String value) {
+    final parsed = double.tryParse(value);
+    if (parsed == null || parsed <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('올바른 유가 값을 입력하세요.')),
+      );
+      return;
+    }
+    widget.settingsController.setFuelPrice(parsed);
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('유가 설정이 저장되었습니다.')),
     );
   }
 }

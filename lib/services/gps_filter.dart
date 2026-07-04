@@ -60,6 +60,16 @@ class GpsFilter {
   /// meters even when stationary.
   static const double minMovementMeters = 5.0;
 
+  /// Cap on the time-fare-eligible portion of a single interval. A tunnel or
+  /// other long GPS blackout can leave many fixes rejected in a row (fixes
+  /// keep coming in at a normal cadence, but each one fails the accuracy
+  /// check); since we don't advance the clock on a rejected fix, the first
+  /// fix accepted afterwards would otherwise carry the *entire* blackout gap
+  /// as elapsed time, misattributing it all as slow/stopped time-fare. Real
+  /// updates arrive about once a second, so anything beyond a few seconds is
+  /// a gap, not a genuine slow interval, and is capped rather than billed.
+  static const Duration maxBillableGap = Duration(seconds: 5);
+
   Position? _anchor;
   DateTime? _lastFixTime;
 
@@ -100,6 +110,8 @@ class GpsFilter {
     }
 
     _lastFixTime = now;
+    final billableTimeDelta =
+        timeDelta > maxBillableGap ? maxBillableGap : timeDelta;
 
     if (rawDistance < minMovementMeters) {
       // Stationary jitter: don't move the anchor, don't add distance, but
@@ -107,18 +119,17 @@ class GpsFilter {
       return FilteredFix(
         accepted: true,
         distanceDeltaMeters: 0,
-        timeDelta: timeDelta,
+        timeDelta: billableTimeDelta,
         speedMps: 0,
       );
     }
 
     _anchor = position;
-    final speed = rawDistance / (timeDelta.inMilliseconds / 1000);
     return FilteredFix(
       accepted: true,
       distanceDeltaMeters: rawDistance,
-      timeDelta: timeDelta,
-      speedMps: speed,
+      timeDelta: billableTimeDelta,
+      speedMps: impliedSpeed,
     );
   }
 

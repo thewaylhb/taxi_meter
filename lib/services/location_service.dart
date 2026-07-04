@@ -1,12 +1,42 @@
+import 'dart:io';
+
 import 'package:geolocator/geolocator.dart';
 
 /// Thin wrapper around geolocator for permission handling + the raw position
 /// stream. No accounts, no backend — this only talks to the OS location API.
 class LocationService {
-  static const _locationSettings = LocationSettings(
-    accuracy: LocationAccuracy.best,
-    distanceFilter: 0,
-  );
+  /// Meters run with the screen off or the app backgrounded, so each
+  /// platform needs its own settings to keep the GPS stream alive: a
+  /// foreground service notification on Android, and the background
+  /// location capability on iOS.
+  static LocationSettings _locationSettings() {
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+        intervalDuration: const Duration(seconds: 1),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: '택시 미터기 운행 중',
+          notificationText: 'GPS로 요금을 측정하고 있습니다.',
+          enableWakeLock: true,
+        ),
+      );
+    }
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.best,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: 0,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
+  }
 
   /// Ensures location services are on and permission is granted.
   /// Returns a human-readable error message, or null on success.
@@ -30,6 +60,6 @@ class LocationService {
   }
 
   static Stream<Position> positionStream() {
-    return Geolocator.getPositionStream(locationSettings: _locationSettings);
+    return Geolocator.getPositionStream(locationSettings: _locationSettings());
   }
 }
