@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'package:taximeter/services/gps_filter.dart';
+import 'package:meter/services/gps_filter.dart';
 
 Position _pos({
   required double lat,

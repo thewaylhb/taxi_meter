@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:taximeter/services/fare_meter.dart';
+import 'package:meter/services/fare_meter.dart';
 
 DateTime _at(int hour, [int minute = 0, int second = 0]) =>
     DateTime(2026, 7, 4, hour, minute, second);
