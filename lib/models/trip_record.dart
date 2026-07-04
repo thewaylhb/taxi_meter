@@ -32,6 +32,14 @@ class TripRecord {
 
   double get distanceKm => distanceMeters / 1000;
 
+  /// 표정속도 (average operating speed): total distance divided by total
+  /// elapsed time, including any stopped time. Zero for a zero-duration
+  /// trip rather than dividing by zero.
+  double get averageSpeedKmh {
+    final hours = duration.inMilliseconds / 1000 / 3600;
+    return hours > 0 ? distanceKm / hours : 0;
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'mode': mode.name,

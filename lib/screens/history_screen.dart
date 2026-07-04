@@ -123,7 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                           title: Text(formatWon(r.fareWon)),
                           subtitle: Text(
-                            '${formatDateTime(r.startTime)} · ${formatDistanceKm(r.distanceMeters)} · ${formatDuration(r.duration)} · ${r.mode.label}',
+                            '${formatDateTime(r.startTime)} · ${formatDistanceKm(r.distanceMeters)} · ${formatDuration(r.duration)} · ${formatSpeedKmh(r.averageSpeedKmh, decimals: 1)} · ${r.mode.label}',
                           ),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute(

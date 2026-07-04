@@ -6,7 +6,8 @@ String formatWon(int won) => '${_wonFormat.format(won)}원';
 
 String formatDistanceKm(double meters) => '${(meters / 1000).toStringAsFixed(2)}km';
 
-String formatSpeedKmh(double kmh) => '${kmh.toStringAsFixed(0)}km/h';
+String formatSpeedKmh(double kmh, {int decimals = 0}) =>
+    '${kmh.toStringAsFixed(decimals)}km/h';
 
 String formatDuration(Duration d) {
   final hours = d.inHours;
