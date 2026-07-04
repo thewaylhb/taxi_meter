@@ -35,6 +35,9 @@ workflows:
           printf '%s' "$CM_CERTIFICATE" | base64 --decode > /tmp/distribution.p12
           security import /tmp/distribution.p12 -k "$KEYCHAIN_PATH" -P "$CM_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Certificates"
+          cp /tmp/distribution.p12 "$HOME/Library/MobileDevice/Certificates/distribution.p12"
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
