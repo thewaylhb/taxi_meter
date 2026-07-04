@@ -79,6 +79,18 @@ class MeterController extends ChangeNotifier {
   double? _fuelEfficiencyKmPerLiter;
   double? _fuelPricePerLiterWon;
 
+  /// The slow-speed threshold the running trip's meter was started with;
+  /// mirrors [StandardFareMeter.slowSpeedThresholdMps] since that's not
+  /// exposed on the [FareMeter] interface (only [StandardFareMeter] cares
+  /// about it — [CarpoolFareMeter] ignores slow-time entirely).
+  double _slowSpeedThresholdMps = StandardFareMeter.defaultSlowSpeedThresholdMps;
+
+  /// Instantaneous device-reported speed from the latest GPS fix, for
+  /// display only. Not used for fare calculation, so it isn't run through
+  /// [GpsFilter] — the driver just wants to see roughly how fast the car is
+  /// going right now.
+  double _currentSpeedMps = 0;
+
   /// True if the current [MeterState.finished] trip came from a snapshot
   /// saved before the app was killed mid-trip, rather than a normal stop.
   bool recoveredFromCrash = false;
@@ -116,6 +128,10 @@ class MeterController extends ChangeNotifier {
   double get distanceMeters => _meter?.totalDistanceMeters ?? 0;
   int get fareWon => _meter?.fareWon ?? 0;
 
+  /// Instantaneous current speed (km/h), for display during a running trip.
+  /// Zero when idle/finished or before the first GPS fix arrives.
+  double get currentSpeedKmh => _currentSpeedMps * 3600 / 1000;
+
   Duration get elapsed {
     if (_startTime == null) return Duration.zero;
     final end = _endTime ?? DateTime.now();
@@ -136,16 +152,33 @@ class MeterController extends ChangeNotifier {
     _fuelEfficiencyKmPerLiter =
         isCarpool ? settings.fuelEfficiencyKmPerLiter : null;
     _fuelPricePerLiterWon = isCarpool ? settings.fuelPricePerLiterWon : null;
-    _meter = isCarpool
-        ? CarpoolFareMeter(
-            fuelEfficiencyKmPerLiter: settings.fuelEfficiencyKmPerLiter,
-            fuelPricePerLiterWon: settings.fuelPricePerLiterWon,
-          )
-        : StandardFareMeter();
+    if (isCarpool) {
+      _meter = CarpoolFareMeter(
+        fuelEfficiencyKmPerLiter: settings.fuelEfficiencyKmPerLiter,
+        fuelPricePerLiterWon: settings.fuelPricePerLiterWon,
+      );
+      _slowSpeedThresholdMps = StandardFareMeter.defaultSlowSpeedThresholdMps;
+    } else if (settings.useCustomStandardRates) {
+      _meter = StandardFareMeter(
+        baseFareWon: settings.standardBaseFareWon.round(),
+        baseDistanceMeters: settings.standardBaseDistanceMeters,
+        distancePulseMeters: settings.standardDistancePulseMeters,
+        distancePulseWon: settings.standardDistancePulseWon.round(),
+        slowSpeedThresholdMps:
+            settings.standardSlowSpeedThresholdKmh * 1000 / 3600,
+        timePulseSeconds: settings.standardTimePulseSeconds,
+      );
+      _slowSpeedThresholdMps =
+          settings.standardSlowSpeedThresholdKmh * 1000 / 3600;
+    } else {
+      _meter = StandardFareMeter();
+      _slowSpeedThresholdMps = StandardFareMeter.defaultSlowSpeedThresholdMps;
+    }
     _gpsFilter = GpsFilter();
     _startTime = DateTime.now();
     _endTime = null;
     _tickCount = 0;
+    _currentSpeedMps = 0;
     recoveredFromCrash = false;
     _meter!.start(_startTime!);
     gpsStatusMessage = null;
@@ -188,6 +221,10 @@ class MeterController extends ChangeNotifier {
   }
 
   void _onPosition(Position position) {
+    // Instantaneous display-only speed, tracked regardless of whether the
+    // fix is accepted for fare billing purposes.
+    _currentSpeedMps = position.speed > 0 ? position.speed : 0;
+
     final fix = _gpsFilter.process(position);
     if (!fix.accepted) {
       gpsStatusMessage = fix.rejectReason;
@@ -196,7 +233,7 @@ class MeterController extends ChangeNotifier {
     }
     gpsStatusMessage = null;
 
-    final slowSeconds = fix.speedMps < StandardFareMeter.slowSpeedThresholdMps
+    final slowSeconds = fix.speedMps < _slowSpeedThresholdMps
         ? fix.timeDelta.inMilliseconds / 1000
         : 0.0;
 
@@ -215,6 +252,7 @@ class MeterController extends ChangeNotifier {
     _positionSub = null;
     _uiTicker?.cancel();
     _uiTicker = null;
+    _currentSpeedMps = 0;
     state = MeterState.finished;
     notifyListeners();
     unawaited(WakelockPlus.disable());

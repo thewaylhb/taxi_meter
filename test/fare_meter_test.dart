@@ -10,7 +10,7 @@ void main() {
     test('base fare only with no movement', () {
       final meter = StandardFareMeter();
       meter.start(_at(12));
-      expect(meter.fareWon, StandardFareMeter.baseFareWon);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon);
       expect(meter.totalDistanceMeters, 0);
     });
 
@@ -22,7 +22,7 @@ void main() {
         slowTimeDeltaSeconds: 0,
         now: _at(12, 5),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon);
       expect(meter.totalDistanceMeters, 1600);
     });
 
@@ -34,14 +34,14 @@ void main() {
         slowTimeDeltaSeconds: 0,
         now: _at(12, 5),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 100);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 100);
 
       meter.update(
         distanceDeltaMeters: 131,
         slowTimeDeltaSeconds: 0,
         now: _at(12, 6),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 200);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 200);
     });
 
     test('time pulse does not accrue before the base distance is covered', () {
@@ -54,7 +54,7 @@ void main() {
         slowTimeDeltaSeconds: 300,
         now: _at(12, 5),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon);
     });
 
     test('time pulse charges 100 won per 30s once beyond base distance', () {
@@ -70,7 +70,7 @@ void main() {
         slowTimeDeltaSeconds: 30,
         now: _at(12, 6),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 100);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 100);
     });
 
     test('slow-time progress and crawl distance do not double count', () {
@@ -89,7 +89,7 @@ void main() {
         slowTimeDeltaSeconds: 30,
         now: _at(12, 6),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 100);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 100);
       expect(meter.totalDistanceMeters, 1620);
     });
 
@@ -110,7 +110,7 @@ void main() {
         slowTimeDeltaSeconds: 5,
         now: _at(12, 6),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 100);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 100);
       expect(meter.totalDistanceMeters, 1800);
     });
 
@@ -128,20 +128,20 @@ void main() {
     test('base fare is surcharged when the trip starts in a late-night band', () {
       final meter = StandardFareMeter();
       meter.start(_at(23));
-      expect(meter.fareWon, (StandardFareMeter.baseFareWon * 1.4).round());
+      expect(meter.fareWon, (StandardFareMeter.defaultBaseFareWon * 1.4).round());
     });
 
     test('a pulse crossing into a new surcharge band bills at the new rate', () {
       final meter = StandardFareMeter();
       meter.start(_at(21, 59));
-      expect(meter.fareWon, StandardFareMeter.baseFareWon);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon);
 
       meter.update(
         distanceDeltaMeters: 1600 + 131,
         slowTimeDeltaSeconds: 0,
         now: _at(22, 0),
       );
-      expect(meter.fareWon, StandardFareMeter.baseFareWon + 120);
+      expect(meter.fareWon, StandardFareMeter.defaultBaseFareWon + 120);
     });
   });
 

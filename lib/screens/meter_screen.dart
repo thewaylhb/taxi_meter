@@ -55,7 +55,11 @@ class _MeterScreenState extends State<MeterScreen> {
   }
 
   Widget _buildIdle(BuildContext context) {
-    final mode = widget.settingsController.settings.mode;
+    final settings = widget.settingsController.settings;
+    final mode = settings.mode;
+    final description = mode == FareMode.standard && settings.useCustomStandardRates
+        ? '사용자 설정 요금제'
+        : mode.description;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -65,7 +69,7 @@ class _MeterScreenState extends State<MeterScreen> {
           const SizedBox(height: 16),
           Text(mode.label, style: Theme.of(context).textTheme.titleLarge),
           Text(
-            mode.description,
+            description,
             style: Theme.of(context).textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -121,6 +125,8 @@ class _MeterScreenState extends State<MeterScreen> {
                   _statRow(Icons.timer, formatDuration(_meter.elapsed)),
                   const SizedBox(height: 8),
                   _statRow(Icons.route, formatDistanceKm(_meter.distanceMeters)),
+                  const SizedBox(height: 8),
+                  _statRow(Icons.speed, formatSpeedKmh(_meter.currentSpeedKmh)),
                 ],
               ),
             ),

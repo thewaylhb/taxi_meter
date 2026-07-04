@@ -9,6 +9,16 @@ import '../models/fare_settings.dart';
 /// SharedPreferences.
 class SettingsController extends ChangeNotifier {
   static const _keyMode = 'fare_mode';
+  static const _keyUseCustomStandardRates = 'use_custom_standard_rates';
+  static const _keyStandardBaseFareWon = 'standard_base_fare_won';
+  static const _keyStandardBaseDistanceMeters =
+      'standard_base_distance_meters';
+  static const _keyStandardDistancePulseMeters =
+      'standard_distance_pulse_meters';
+  static const _keyStandardDistancePulseWon = 'standard_distance_pulse_won';
+  static const _keyStandardSlowSpeedThresholdKmh =
+      'standard_slow_speed_threshold_kmh';
+  static const _keyStandardTimePulseSeconds = 'standard_time_pulse_seconds';
   static const _keyFuelEfficiency = 'fuel_efficiency_km_per_liter';
   static const _keyFuelPrice = 'fuel_price_per_liter_won';
 
@@ -17,16 +27,36 @@ class SettingsController extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    final defaults = FareSettings();
     final modeName = prefs.getString(_keyMode);
-    final efficiency = prefs.getDouble(_keyFuelEfficiency);
-    final fuelPrice = prefs.getDouble(_keyFuelPrice);
     _settings = FareSettings(
       mode: FareMode.values.firstWhere(
         (e) => e.name == modeName,
         orElse: () => FareMode.standard,
       ),
-      fuelEfficiencyKmPerLiter: efficiency ?? 12.0,
-      fuelPricePerLiterWon: fuelPrice ?? 2000.0,
+      useCustomStandardRates:
+          prefs.getBool(_keyUseCustomStandardRates) ?? false,
+      standardBaseFareWon: prefs.getDouble(_keyStandardBaseFareWon) ??
+          defaults.standardBaseFareWon,
+      standardBaseDistanceMeters:
+          prefs.getDouble(_keyStandardBaseDistanceMeters) ??
+              defaults.standardBaseDistanceMeters,
+      standardDistancePulseMeters:
+          prefs.getDouble(_keyStandardDistancePulseMeters) ??
+              defaults.standardDistancePulseMeters,
+      standardDistancePulseWon:
+          prefs.getDouble(_keyStandardDistancePulseWon) ??
+              defaults.standardDistancePulseWon,
+      standardSlowSpeedThresholdKmh:
+          prefs.getDouble(_keyStandardSlowSpeedThresholdKmh) ??
+              defaults.standardSlowSpeedThresholdKmh,
+      standardTimePulseSeconds:
+          prefs.getDouble(_keyStandardTimePulseSeconds) ??
+              defaults.standardTimePulseSeconds,
+      fuelEfficiencyKmPerLiter:
+          prefs.getDouble(_keyFuelEfficiency) ?? defaults.fuelEfficiencyKmPerLiter,
+      fuelPricePerLiterWon:
+          prefs.getDouble(_keyFuelPrice) ?? defaults.fuelPricePerLiterWon,
     );
     notifyListeners();
   }
@@ -36,6 +66,55 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMode, mode.name);
+  }
+
+  Future<void> setUseCustomStandardRates(bool useCustom) async {
+    _settings = _settings.copyWith(useCustomStandardRates: useCustom);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyUseCustomStandardRates, useCustom);
+  }
+
+  Future<void> setStandardBaseFareWon(double won) async {
+    _settings = _settings.copyWith(standardBaseFareWon: won);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardBaseFareWon, won);
+  }
+
+  Future<void> setStandardBaseDistanceMeters(double meters) async {
+    _settings = _settings.copyWith(standardBaseDistanceMeters: meters);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardBaseDistanceMeters, meters);
+  }
+
+  Future<void> setStandardDistancePulseMeters(double meters) async {
+    _settings = _settings.copyWith(standardDistancePulseMeters: meters);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardDistancePulseMeters, meters);
+  }
+
+  Future<void> setStandardDistancePulseWon(double won) async {
+    _settings = _settings.copyWith(standardDistancePulseWon: won);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardDistancePulseWon, won);
+  }
+
+  Future<void> setStandardSlowSpeedThresholdKmh(double kmh) async {
+    _settings = _settings.copyWith(standardSlowSpeedThresholdKmh: kmh);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardSlowSpeedThresholdKmh, kmh);
+  }
+
+  Future<void> setStandardTimePulseSeconds(double seconds) async {
+    _settings = _settings.copyWith(standardTimePulseSeconds: seconds);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyStandardTimePulseSeconds, seconds);
   }
 
   Future<void> setFuelEfficiency(double kmPerLiter) async {

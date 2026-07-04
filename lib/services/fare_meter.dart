@@ -38,12 +38,44 @@ abstract class FareMeter {
 ///   band boundary is billed correctly on each side): +20% from 22:00 to
 ///   23:00, +40% from 23:00 to 02:00, +20% from 02:00 to 04:00.
 class StandardFareMeter implements FareMeter {
-  static const int baseFareWon = 4800;
-  static const double baseDistanceMeters = 1600;
-  static const double distancePulseMeters = 131;
-  static const int distancePulseWon = 100;
-  static const double slowSpeedThresholdMps = 15.72 * 1000 / 3600;
-  static const double timePulseSeconds = 30;
+  static const int defaultBaseFareWon = 4800;
+  static const double defaultBaseDistanceMeters = 1600;
+  static const double defaultDistancePulseMeters = 131;
+  static const int defaultDistancePulseWon = 100;
+  static const double defaultSlowSpeedThresholdMps = 15.72 * 1000 / 3600;
+  static const double defaultTimePulseSeconds = 30;
+
+  /// Base fare in won, covering the first [baseDistanceMeters].
+  final int baseFareWon;
+
+  /// Distance (meters) covered by the base fare before pulse charging
+  /// starts.
+  final double baseDistanceMeters;
+
+  /// Distance (meters) that corresponds to one [distancePulseWon] charge at
+  /// normal speed.
+  final double distancePulseMeters;
+
+  /// Won charged per [distancePulseMeters] (or per [timePulseSeconds] while
+  /// below [slowSpeedThresholdMps]).
+  final int distancePulseWon;
+
+  /// Speed (m/s) below which elapsed time bills as slow-time progress
+  /// instead of distance.
+  final double slowSpeedThresholdMps;
+
+  /// Seconds of slow/stopped time that correspond to one
+  /// [distancePulseWon] charge.
+  final double timePulseSeconds;
+
+  StandardFareMeter({
+    this.baseFareWon = defaultBaseFareWon,
+    this.baseDistanceMeters = defaultBaseDistanceMeters,
+    this.distancePulseMeters = defaultDistancePulseMeters,
+    this.distancePulseWon = defaultDistancePulseWon,
+    this.slowSpeedThresholdMps = defaultSlowSpeedThresholdMps,
+    this.timePulseSeconds = defaultTimePulseSeconds,
+  });
 
   /// Real physical distance travelled, for display/record purposes only.
   double _realDistanceMeters = 0;
