@@ -5,4 +5,4 @@ flutter_launcher_icons:
   windows:
     generate: true
     image_path: "assets/icon/meter_icon1024.png"
-  image_path: "assets/icon/meter_icon1024.png"
+  image_path: "assets/icon/meter_icon.png"
