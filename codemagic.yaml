@@ -40,8 +40,9 @@ workflows:
           cp /tmp/distribution.p12 "$HOME/Library/MobileDevice/Certificates/distribution.p12"
       - name: Fetch signing files
         script: |
+          printf '%s' "$CERTIFICATE_PRIVATE_KEY_B64" | base64 --decode > /tmp/certificate_private_key.pem
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create \
-            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY
+            --certificate-key=@file:/tmp/certificate_private_key.pem
       - name: Set up provisioning profiles settings on Xcode project
         script: xcode-project use-profiles
       - name: Increment build number
