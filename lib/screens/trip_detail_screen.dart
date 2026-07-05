@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/fare_mode.dart';
 import '../models/trip_record.dart';
+import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 
 class TripDetailScreen extends StatelessWidget {
@@ -21,7 +22,7 @@ class TripDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   formatWon(record.fareWon),
-                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                  style: fareTextStyle(context, fontSize: 40),
                 ),
                 const SizedBox(height: 4),
                 Text(record.mode.label),
@@ -49,6 +50,23 @@ class TripDetailScreen extends StatelessWidget {
               record.fuelPricePerLiterWon != null
                   ? '${formatWon(record.fuelPricePerLiterWon!.round())}/L'
                   : '-',
+            ),
+          ],
+          if (record.riderCount > 1) ...[
+            const Divider(),
+            _row('인원수', '${record.riderCount}명'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('1인당 금액', style: TextStyle(color: Colors.grey)),
+                  Text(
+                    formatWon(record.amountPerPersonWon),
+                    style: fareTextStyle(context, fontSize: 18),
+                  ),
+                ],
+              ),
             ),
           ],
         ],

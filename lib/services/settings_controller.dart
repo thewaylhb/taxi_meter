@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/fare_mode.dart';
@@ -9,6 +9,7 @@ import '../models/fare_settings.dart';
 /// SharedPreferences.
 class SettingsController extends ChangeNotifier {
   static const _keyMode = 'fare_mode';
+  static const _keyThemeMode = 'theme_mode';
   static const _keyUseCustomStandardRates = 'use_custom_standard_rates';
   static const _keyStandardBaseFareWon = 'standard_base_fare_won';
   static const _keyStandardBaseDistanceMeters =
@@ -25,10 +26,17 @@ class SettingsController extends ChangeNotifier {
   FareSettings _settings = FareSettings();
   FareSettings get settings => _settings;
 
+  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode get themeMode => _themeMode;
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final defaults = FareSettings();
     final modeName = prefs.getString(_keyMode);
+    _themeMode = ThemeMode.values.firstWhere(
+      (e) => e.name == prefs.getString(_keyThemeMode),
+      orElse: () => ThemeMode.light,
+    );
     _settings = FareSettings(
       mode: FareMode.values.firstWhere(
         (e) => e.name == modeName,
@@ -59,6 +67,13 @@ class SettingsController extends ChangeNotifier {
           prefs.getDouble(_keyFuelPrice) ?? defaults.fuelPricePerLiterWon,
     );
     notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyThemeMode, mode.name);
   }
 
   Future<void> setMode(FareMode mode) async {

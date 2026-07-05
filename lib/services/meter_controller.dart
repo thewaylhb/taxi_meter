@@ -101,6 +101,10 @@ class MeterController extends ChangeNotifier {
   /// are no surcharges in [FareMode.carpool].
   bool suburbanSurchargeActive = false;
 
+  /// Number of riders to split the finished trip's fare across ("N빵"),
+  /// chosen on the settlement screen. Reset to 1 for each new trip.
+  int riderCount = 1;
+
   String? gpsStatusMessage;
   String? errorMessage;
 
@@ -134,6 +138,11 @@ class MeterController extends ChangeNotifier {
   double get distanceMeters => _meter?.totalDistanceMeters ?? 0;
   int get fareWon => _meter?.fareWon ?? 0;
 
+  /// Per-rider share of [fareWon] ("N빵"), rounded up to the nearest 100 won.
+  /// With a single rider there's nothing to split, so it's the exact fare.
+  int get amountPerPersonWon =>
+      riderCount <= 1 ? fareWon : (fareWon / riderCount / 100).ceil() * 100;
+
   /// Instantaneous current speed (km/h), for display during a running trip.
   /// Zero when idle/finished or before the first GPS fix arrives.
   double get currentSpeedKmh => _currentSpeedMps * 3600 / 1000;
@@ -149,6 +158,14 @@ class MeterController extends ChangeNotifier {
   void setSuburbanSurcharge(bool active) {
     if (state != MeterState.running) return;
     suburbanSurchargeActive = active;
+    notifyListeners();
+  }
+
+  /// Sets how many riders to split the finished trip's fare across.
+  /// Clamped to a sensible 1-8 range for a taxi.
+  void setRiderCount(int count) {
+    if (state != MeterState.finished) return;
+    riderCount = count.clamp(1, 8);
     notifyListeners();
   }
 
@@ -294,6 +311,7 @@ class MeterController extends ChangeNotifier {
       fareWon: _meter!.fareWon,
       fuelEfficiencyKmPerLiter: _fuelEfficiencyKmPerLiter,
       fuelPricePerLiterWon: _fuelPricePerLiterWon,
+      riderCount: riderCount,
     );
 
     // Clear in-memory state synchronously, before the async writes below,
@@ -313,6 +331,7 @@ class MeterController extends ChangeNotifier {
     _fuelPricePerLiterWon = null;
     _startTime = null;
     _endTime = null;
+    riderCount = 1;
     recoveredFromCrash = false;
     gpsStatusMessage = null;
     errorMessage = null;

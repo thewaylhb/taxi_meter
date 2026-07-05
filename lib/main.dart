@@ -6,6 +6,7 @@ import 'screens/meter_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/settings_controller.dart';
 import 'services/trip_repository.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,56 +14,78 @@ Future<void> main() async {
   runApp(const TaxiMeterApp());
 }
 
-class TaxiMeterApp extends StatelessWidget {
+class TaxiMeterApp extends StatefulWidget {
   const TaxiMeterApp({super.key});
+
+  @override
+  State<TaxiMeterApp> createState() => _TaxiMeterAppState();
+}
+
+class _TaxiMeterAppState extends State<TaxiMeterApp> {
+  final SettingsController _settingsController = SettingsController();
+  final TripRepository _tripRepository = TripRepository();
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _settingsController.addListener(_onSettingsChanged);
+    _settingsController.load().then((_) {
+      setState(() => _loaded = true);
+    });
+  }
+
+  void _onSettingsChanged() => setState(() {});
+
+  @override
+  void dispose() {
+    _settingsController.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Meter',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
-        useMaterial3: true,
-      ),
-      home: const RootScreen(),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: _settingsController.themeMode,
+      home: _loaded
+          ? RootScreen(
+              settingsController: _settingsController,
+              tripRepository: _tripRepository,
+            )
+          : const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
 }
 
 class RootScreen extends StatefulWidget {
-  const RootScreen({super.key});
+  final SettingsController settingsController;
+  final TripRepository tripRepository;
+
+  const RootScreen({
+    super.key,
+    required this.settingsController,
+    required this.tripRepository,
+  });
 
   @override
   State<RootScreen> createState() => _RootScreenState();
 }
 
 class _RootScreenState extends State<RootScreen> {
-  final SettingsController _settingsController = SettingsController();
-  final TripRepository _tripRepository = TripRepository();
   int _tabIndex = 0;
-  bool _loaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _settingsController.load().then((_) {
-      setState(() => _loaded = true);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     final screens = [
       MeterScreen(
-        settingsController: _settingsController,
-        tripRepository: _tripRepository,
+        settingsController: widget.settingsController,
+        tripRepository: widget.tripRepository,
       ),
-      HistoryScreen(tripRepository: _tripRepository),
-      SettingsScreen(settingsController: _settingsController),
+      HistoryScreen(tripRepository: widget.tripRepository),
+      SettingsScreen(settingsController: widget.settingsController),
     ];
 
     return Scaffold(

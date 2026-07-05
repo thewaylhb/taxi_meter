@@ -17,6 +17,10 @@ class TripRecord {
   /// user changes the setting later.
   final double? fuelPricePerLiterWon;
 
+  /// Number of riders the fare was split across at settlement time ("N빵").
+  /// 1 means no split.
+  final int riderCount;
+
   TripRecord({
     required this.id,
     required this.mode,
@@ -26,11 +30,18 @@ class TripRecord {
     required this.fareWon,
     this.fuelEfficiencyKmPerLiter,
     this.fuelPricePerLiterWon,
+    this.riderCount = 1,
   });
 
   Duration get duration => endTime.difference(startTime);
 
   double get distanceKm => distanceMeters / 1000;
+
+  /// Per-rider share of [fareWon], rounded up to the nearest 100 won. With a
+  /// single rider there's nothing to split, so it's the exact fare rather
+  /// than a rounded value that could mismatch the total shown above it.
+  int get amountPerPersonWon =>
+      riderCount <= 1 ? fareWon : (fareWon / riderCount / 100).ceil() * 100;
 
   /// 표정속도 (average operating speed): total distance divided by total
   /// elapsed time, including any stopped time. Zero for a zero-duration
@@ -49,6 +60,7 @@ class TripRecord {
         'fareWon': fareWon,
         'fuelEfficiencyKmPerLiter': fuelEfficiencyKmPerLiter,
         'fuelPricePerLiterWon': fuelPricePerLiterWon,
+        'riderCount': riderCount,
       };
 
   factory TripRecord.fromJson(Map<String, dynamic> json) {
@@ -65,6 +77,7 @@ class TripRecord {
       fuelEfficiencyKmPerLiter:
           (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble(),
       fuelPricePerLiterWon: (json['fuelPricePerLiterWon'] as num?)?.toDouble(),
+      riderCount: (json['riderCount'] as num?)?.toInt() ?? 1,
     );
   }
 }

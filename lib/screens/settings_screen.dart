@@ -77,6 +77,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('화면 모드', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          RadioGroup<ThemeMode>(
+            groupValue: widget.settingsController.themeMode,
+            onChanged: (value) {
+              if (value != null) widget.settingsController.setThemeMode(value);
+            },
+            child: const Column(
+              children: [
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.light,
+                  title: Text('주간 모드'),
+                  subtitle: Text('밝은 화면'),
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.dark,
+                  title: Text('야간 모드'),
+                  subtitle: Text('눈부심 감소 및 배터리 절약'),
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.system,
+                  title: Text('시스템 설정에 따름'),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 32),
           Text('요금 모드', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           RadioGroup<FareMode>(
