@@ -48,3 +48,6 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# ITS road network source data (huge, re-downloadable, dev-machine only)
+/tool/roaddata/raw/

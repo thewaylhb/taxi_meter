@@ -4,9 +4,11 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/history_screen.dart';
 import 'screens/meter_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/road_match_service.dart';
 import 'services/settings_controller.dart';
 import 'services/trip_repository.dart';
 import 'theme/app_theme.dart';
+import 'widgets/road_info_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -76,6 +78,19 @@ class RootScreen extends StatefulWidget {
 
 class _RootScreenState extends State<RootScreen> {
   int _tabIndex = 0;
+  final RoadMatchService _roadMatchService = RoadMatchService();
+
+  @override
+  void initState() {
+    super.initState();
+    _roadMatchService.start();
+  }
+
+  @override
+  void dispose() {
+    _roadMatchService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +104,12 @@ class _RootScreenState extends State<RootScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _tabIndex, children: screens),
+      body: Column(
+        children: [
+          RoadInfoBanner(roadMatchService: _roadMatchService),
+          Expanded(child: IndexedStack(index: _tabIndex, children: screens)),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
         onDestinationSelected: (index) => setState(() => _tabIndex = index),
