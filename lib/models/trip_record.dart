@@ -21,6 +21,10 @@ class TripRecord {
   /// 1 means no split.
   final int riderCount;
 
+  /// Highest instantaneous speed reached during the trip. Null for trips
+  /// recorded before this field existed, rather than a misleading 0.
+  final double? maxSpeedKmh;
+
   TripRecord({
     required this.id,
     required this.mode,
@@ -31,6 +35,7 @@ class TripRecord {
     this.fuelEfficiencyKmPerLiter,
     this.fuelPricePerLiterWon,
     this.riderCount = 1,
+    this.maxSpeedKmh,
   });
 
   Duration get duration => endTime.difference(startTime);
@@ -61,6 +66,7 @@ class TripRecord {
         'fuelEfficiencyKmPerLiter': fuelEfficiencyKmPerLiter,
         'fuelPricePerLiterWon': fuelPricePerLiterWon,
         'riderCount': riderCount,
+        'maxSpeedKmh': maxSpeedKmh,
       };
 
   factory TripRecord.fromJson(Map<String, dynamic> json) {
@@ -78,6 +84,7 @@ class TripRecord {
           (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble(),
       fuelPricePerLiterWon: (json['fuelPricePerLiterWon'] as num?)?.toDouble(),
       riderCount: (json['riderCount'] as num?)?.toInt() ?? 1,
+      maxSpeedKmh: (json['maxSpeedKmh'] as num?)?.toDouble(),
     );
   }
 }

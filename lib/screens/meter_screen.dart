@@ -47,7 +47,8 @@ class _MeterScreenState extends State<MeterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('택시 미터기')),
+      // No AppBar here: the bottom nav's "미터기" tab already says what this
+      // screen is, and a title bar just steals space from the meter itself.
       body: SafeArea(
         child: switch (_meter.state) {
           MeterState.idle => _buildIdle(context),
@@ -72,11 +73,12 @@ class _MeterScreenState extends State<MeterScreen> {
           Icon(Icons.local_taxi, size: 96, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 16),
           Text(mode.label, style: Theme.of(context).textTheme.titleLarge),
-          Text(
-            description,
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
+          if (mode != FareMode.safeDriving)
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
           const SizedBox(height: 48),
           if (_meter.errorMessage != null) ...[
             Text(
@@ -405,6 +407,8 @@ class _MeterScreenState extends State<MeterScreen> {
           _statRow(context, Icons.timer, formatDuration(_meter.elapsed)),
           const SizedBox(height: 8),
           _statRow(context, Icons.route, formatDistanceKm(_meter.distanceMeters)),
+          const SizedBox(height: 8),
+          _statRow(context, Icons.speed, formatSpeedKmh(_meter.maxSpeedKmh, decimals: 1)),
           if (mode == FareMode.carpool) ...[
             const SizedBox(height: 24),
             _fareBreakdownCard(context),

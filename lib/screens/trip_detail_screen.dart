@@ -37,6 +37,12 @@ class TripDetailScreen extends StatelessWidget {
           _row('운행 시간', formatDuration(record.duration)),
           _row('이동 거리', formatDistanceKm(record.distanceMeters)),
           _row('표정속도', formatSpeedKmh(record.averageSpeedKmh, decimals: 1)),
+          _row(
+            '최고속도',
+            record.maxSpeedKmh != null
+                ? formatSpeedKmh(record.maxSpeedKmh!, decimals: 1)
+                : '-',
+          ),
           if (record.mode == FareMode.carpool) ...[
             const Divider(),
             _row(

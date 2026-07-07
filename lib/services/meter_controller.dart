@@ -346,6 +346,7 @@ class MeterController extends ChangeNotifier {
       fuelEfficiencyKmPerLiter: _fuelEfficiencyKmPerLiter,
       fuelPricePerLiterWon: _fuelPricePerLiterWon,
       riderCount: riderCount,
+      maxSpeedKmh: maxSpeedKmh,
     );
 
     // Clear in-memory state synchronously, before the async writes below,

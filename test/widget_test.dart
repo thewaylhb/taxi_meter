@@ -12,6 +12,5 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('운행 시작'), findsOneWidget);
-    expect(find.text('택시 미터기'), findsOneWidget);
   });
 }
