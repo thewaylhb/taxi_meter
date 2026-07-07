@@ -92,6 +92,9 @@ class MeterController extends ChangeNotifier {
   /// going right now.
   double _currentSpeedMps = 0;
 
+  /// Highest [_currentSpeedMps] seen so far this trip, for the 최고속도 stat.
+  double _maxSpeedMps = 0;
+
   /// True if the current [MeterState.finished] trip came from a snapshot
   /// saved before the app was killed mid-trip, rather than a normal stop.
   bool recoveredFromCrash = false;
@@ -147,6 +150,17 @@ class MeterController extends ChangeNotifier {
   /// Zero when idle/finished or before the first GPS fix arrives.
   double get currentSpeedKmh => _currentSpeedMps * 3600 / 1000;
 
+  /// Highest instantaneous speed reached so far this trip.
+  double get maxSpeedKmh => _maxSpeedMps * 3600 / 1000;
+
+  /// 표정속도 (average operating speed): total distance divided by total
+  /// elapsed time, including any stopped time. Zero for a zero-duration
+  /// trip rather than dividing by zero.
+  double get averageSpeedKmh {
+    final hours = elapsed.inMilliseconds / 1000 / 3600;
+    return hours > 0 ? (distanceMeters / 1000) / hours : 0;
+  }
+
   Duration get elapsed {
     if (_startTime == null) return Duration.zero;
     final end = _endTime ?? DateTime.now();
@@ -183,7 +197,10 @@ class MeterController extends ChangeNotifier {
     _fuelEfficiencyKmPerLiter =
         isCarpool ? settings.fuelEfficiencyKmPerLiter : null;
     _fuelPricePerLiterWon = isCarpool ? settings.fuelPricePerLiterWon : null;
-    if (isCarpool) {
+    if (settings.mode == FareMode.safeDriving) {
+      _meter = NoFareMeter();
+      _slowSpeedThresholdMps = StandardFareMeter.defaultSlowSpeedThresholdMps;
+    } else if (isCarpool) {
       _meter = CarpoolFareMeter(
         fuelEfficiencyKmPerLiter: settings.fuelEfficiencyKmPerLiter,
         fuelPricePerLiterWon: settings.fuelPricePerLiterWon,
@@ -210,6 +227,7 @@ class MeterController extends ChangeNotifier {
     _endTime = null;
     _tickCount = 0;
     _currentSpeedMps = 0;
+    _maxSpeedMps = 0;
     suburbanSurchargeActive = false;
     recoveredFromCrash = false;
     _meter!.start(_startTime!);
@@ -240,7 +258,14 @@ class MeterController extends ChangeNotifier {
   }
 
   Future<void> _persistActiveTripSnapshot() async {
-    if (_mode == null || _startTime == null || _meter == null) return;
+    // Safe-driving trips aren't billed or settled, so there's nothing worth
+    // recovering after a crash.
+    if (_mode == null ||
+        _mode == FareMode.safeDriving ||
+        _startTime == null ||
+        _meter == null) {
+      return;
+    }
     await _activeTripRepository.save(ActiveTripSnapshot(
       mode: _mode!,
       startTime: _startTime!,
@@ -256,6 +281,7 @@ class MeterController extends ChangeNotifier {
     // Instantaneous display-only speed, tracked regardless of whether the
     // fix is accepted for fare billing purposes.
     _currentSpeedMps = position.speed > 0 ? position.speed : 0;
+    if (_currentSpeedMps > _maxSpeedMps) _maxSpeedMps = _currentSpeedMps;
 
     final fix = _gpsFilter.process(position);
     if (!fix.accepted) {
@@ -286,9 +312,17 @@ class MeterController extends ChangeNotifier {
     _uiTicker?.cancel();
     _uiTicker = null;
     _currentSpeedMps = 0;
+    unawaited(WakelockPlus.disable());
+
+    // Nothing to settle in safe-driving mode: skip the fare/finished screen
+    // and go straight back to idle.
+    if (_mode == FareMode.safeDriving) {
+      _reset();
+      return;
+    }
+
     state = MeterState.finished;
     notifyListeners();
-    unawaited(WakelockPlus.disable());
     unawaited(_persistActiveTripSnapshot());
   }
 
@@ -331,6 +365,7 @@ class MeterController extends ChangeNotifier {
     _fuelPricePerLiterWon = null;
     _startTime = null;
     _endTime = null;
+    _maxSpeedMps = 0;
     riderCount = 1;
     recoveredFromCrash = false;
     gpsStatusMessage = null;

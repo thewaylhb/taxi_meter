@@ -8,6 +8,7 @@ import '../services/road_match_service.dart';
 import '../services/settings_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../widgets/speed_gauge.dart';
 import '../widgets/speed_limit_sign.dart';
 
 class MeterScreen extends StatefulWidget {
@@ -113,6 +114,11 @@ class _MeterScreenState extends State<MeterScreen> {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Keep the GPS line and the "운행 중" pill aligned to the same
+            // top line regardless of the speed-limit sign's height below
+            // it; without this the Row centers the GPS line against the
+            // taller [pill + sign] column instead.
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Flexible(
                 child: Row(
@@ -167,45 +173,48 @@ class _MeterScreenState extends State<MeterScreen> {
           ),
           Expanded(
             child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '현재 요금',
-                    style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 6),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Text(
-                      formatWon(_meter.fareWon),
-                      key: ValueKey(_meter.fareWon),
-                      style: fareTextStyle(context, fontSize: 54),
+              child: _meter.mode == FareMode.safeDriving
+                  ? _safeDrivingBody(context)
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '현재 요금',
+                          style: TextStyle(
+                              fontSize: 13, color: colors.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 6),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Text(
+                            formatWon(_meter.fareWon),
+                            key: ValueKey(_meter.fareWon),
+                            style: fareTextStyle(context, fontSize: 54),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 6,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            if (isNight)
+                              _badge(
+                                '심야 +${((nightMultiplier - 1) * 100).round()}%',
+                                semantic.nightSurcharge,
+                              ),
+                            if (_meter.mode == FareMode.carpool)
+                              _badge('카풀', semantic.secondaryAccent),
+                            if (_meter.suburbanSurchargeActive)
+                              _badge(
+                                '시외 +${((StandardFareMeter.suburbanSurchargeMultiplier - 1) * 100).round()}%',
+                                semantic.secondaryAccent,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _statGrid(context),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 6,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      if (isNight)
-                        _badge(
-                          '심야 +${((nightMultiplier - 1) * 100).round()}%',
-                          semantic.nightSurcharge,
-                        ),
-                      if (_meter.mode == FareMode.carpool)
-                        _badge('카풀', semantic.secondaryAccent),
-                      if (_meter.suburbanSurchargeActive)
-                        _badge(
-                          '시외 +${((StandardFareMeter.suburbanSurchargeMultiplier - 1) * 100).round()}%',
-                          semantic.secondaryAccent,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _statGrid(context),
-                ],
-              ),
             ),
           ),
           Row(
@@ -240,6 +249,7 @@ class _MeterScreenState extends State<MeterScreen> {
     return SizedBox(
       height: 64,
       child: OutlinedButton(
+        style: OutlinedButton.styleFrom(alignment: Alignment.center),
         onPressed: () => _meter.setSuburbanSurcharge(!active),
         child: Text.rich(
           TextSpan(
@@ -257,6 +267,7 @@ class _MeterScreenState extends State<MeterScreen> {
               ),
             ],
           ),
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -273,6 +284,41 @@ class _MeterScreenState extends State<MeterScreen> {
             context,
             '속도',
             formatSpeedKmh(_meter.currentSpeedKmh),
+            showDivider: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _safeDrivingBody(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListenableBuilder(
+          listenable: widget.roadMatchService,
+          builder: (context, _) => SpeedGauge(
+            currentSpeedKmh: _meter.currentSpeedKmh,
+            limitKmh: widget.roadMatchService.current?.maxSpeedKmh,
+          ),
+        ),
+        const SizedBox(height: 24),
+        _safeDrivingStatGrid(context),
+      ],
+    );
+  }
+
+  Widget _safeDrivingStatGrid(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          _statCell(context, '주행시간', formatDuration(_meter.elapsed)),
+          _statCell(context, '표정속도', formatSpeedKmh(_meter.averageSpeedKmh)),
+          _statCell(
+            context,
+            '최고속도',
+            formatSpeedKmh(_meter.maxSpeedKmh),
             showDivider: false,
           ),
         ],

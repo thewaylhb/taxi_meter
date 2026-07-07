@@ -226,4 +226,20 @@ void main() {
       expect(meter.fareWon, 3000 + 3000);
     });
   });
+
+  group('NoFareMeter', () {
+    test('tracks distance but never charges anything', () {
+      final meter = NoFareMeter();
+      meter.start(_at(12));
+      expect(meter.fareWon, 0);
+
+      meter.update(
+        distanceDeltaMeters: 10000,
+        slowTimeDeltaSeconds: 999999,
+        now: _at(12, 30),
+      );
+      expect(meter.fareWon, 0);
+      expect(meter.totalDistanceMeters, 10000);
+    });
+  });
 }

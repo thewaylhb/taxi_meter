@@ -207,3 +207,31 @@ class CarpoolFareMeter implements FareMeter {
   @override
   double get totalDistanceMeters => _distanceMeters;
 }
+
+/// No-op fare for [FareMode.safeDriving]: tracks distance the same way as
+/// the other meters (so elapsed/distance-derived stats still work) but
+/// never charges anything.
+class NoFareMeter implements FareMeter {
+  double _distanceMeters = 0;
+
+  @override
+  void start(DateTime now) {
+    _distanceMeters = 0;
+  }
+
+  @override
+  void update({
+    required double distanceDeltaMeters,
+    required double slowTimeDeltaSeconds,
+    required DateTime now,
+    bool isSuburban = false,
+  }) {
+    _distanceMeters += distanceDeltaMeters;
+  }
+
+  @override
+  int get fareWon => 0;
+
+  @override
+  double get totalDistanceMeters => _distanceMeters;
+}
