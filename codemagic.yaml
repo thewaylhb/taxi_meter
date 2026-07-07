@@ -19,6 +19,9 @@ workflows:
       - name: Get Flutter packages
         script: |
           flutter packages pub get
+      - name: Run tests
+        script: |
+          flutter test
       - name: Set up signing certificate
         script: |
           KEYCHAIN_PATH="$HOME/Library/Keychains/build.keychain-db"

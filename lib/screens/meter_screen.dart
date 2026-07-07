@@ -4,19 +4,22 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../models/fare_mode.dart';
 import '../services/fare_meter.dart';
 import '../services/meter_controller.dart';
+import '../services/road_match_service.dart';
 import '../services/settings_controller.dart';
-import '../services/trip_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../widgets/speed_limit_sign.dart';
 
 class MeterScreen extends StatefulWidget {
   final SettingsController settingsController;
-  final TripRepository tripRepository;
+  final MeterController meterController;
+  final RoadMatchService roadMatchService;
 
   const MeterScreen({
     super.key,
     required this.settingsController,
-    required this.tripRepository,
+    required this.meterController,
+    required this.roadMatchService,
   });
 
   @override
@@ -24,14 +27,12 @@ class MeterScreen extends StatefulWidget {
 }
 
 class _MeterScreenState extends State<MeterScreen> {
-  late final MeterController _meter =
-      MeterController(tripRepository: widget.tripRepository);
+  MeterController get _meter => widget.meterController;
 
   @override
   void initState() {
     super.initState();
     _meter.addListener(_onChange);
-    _meter.recoverIfAny();
   }
 
   void _onChange() => setState(() {});
@@ -39,7 +40,6 @@ class _MeterScreenState extends State<MeterScreen> {
   @override
   void dispose() {
     _meter.removeListener(_onChange);
-    _meter.dispose();
     super.dispose();
   }
 
@@ -137,20 +137,31 @@ class _MeterScreenState extends State<MeterScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '운행 중',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onPrimary,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '운행 중',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onPrimary,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  SpeedLimitSign(
+                    roadMatchService: widget.roadMatchService,
+                    currentSpeedKmh: _meter.currentSpeedKmh,
+                  ),
+                ],
               ),
             ],
           ),
@@ -361,8 +372,16 @@ class _MeterScreenState extends State<MeterScreen> {
                 width: 56,
                 height: 56,
                 child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(56, 56),
+                  ),
                   onPressed: () => _shareSettlement(context, amountPerPerson),
-                  child: const Icon(Icons.share),
+                  // ios_share (arrow out of a box) renders symmetrically at
+                  // this size; Icons.share's glyph ink isn't centered in its
+                  // own 24x24 box, so it visibly leans right even though the
+                  // button/layout around it is perfectly centered.
+                  child: const Icon(Icons.ios_share),
                 ),
               ),
               const SizedBox(width: 12),

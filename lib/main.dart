@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/history_screen.dart';
 import 'screens/meter_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/meter_controller.dart';
 import 'services/road_match_service.dart';
 import 'services/settings_controller.dart';
 import 'services/trip_repository.dart';
@@ -79,15 +80,35 @@ class RootScreen extends StatefulWidget {
 class _RootScreenState extends State<RootScreen> {
   int _tabIndex = 0;
   final RoadMatchService _roadMatchService = RoadMatchService();
+  late final MeterController _meterController =
+      MeterController(tripRepository: widget.tripRepository);
+  MeterState _lastMeterState = MeterState.idle;
 
   @override
   void initState() {
     super.initState();
-    _roadMatchService.start();
+    _meterController.addListener(_onMeterChange);
+    _meterController.recoverIfAny();
+  }
+
+  // Road matching (and the GPS it needs) only runs while a trip is actually
+  // running: it's a courtesy display, not billing-critical, and there's no
+  // legitimate reason to hold location while the meter is idle.
+  void _onMeterChange() {
+    final running = _meterController.state == MeterState.running;
+    if (running && _lastMeterState != MeterState.running) {
+      _roadMatchService.start();
+    } else if (!running && _lastMeterState == MeterState.running) {
+      _roadMatchService.stop();
+    }
+    _lastMeterState = _meterController.state;
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _meterController.removeListener(_onMeterChange);
+    _meterController.dispose();
     _roadMatchService.dispose();
     super.dispose();
   }
@@ -96,18 +117,32 @@ class _RootScreenState extends State<RootScreen> {
   Widget build(BuildContext context) {
     final screens = [
       MeterScreen(
+        meterController: _meterController,
         settingsController: widget.settingsController,
-        tripRepository: widget.tripRepository,
+        roadMatchService: _roadMatchService,
       ),
       HistoryScreen(tripRepository: widget.tripRepository),
       SettingsScreen(settingsController: widget.settingsController),
     ];
 
+    final showRoadBanner = _meterController.state == MeterState.running;
+
     return Scaffold(
       body: Column(
         children: [
-          RoadInfoBanner(roadMatchService: _roadMatchService),
-          Expanded(child: IndexedStack(index: _tabIndex, children: screens)),
+          if (showRoadBanner) RoadInfoBanner(roadMatchService: _roadMatchService),
+          Expanded(
+            // Each tab owns its own Scaffold+AppBar, which reserves the top
+            // status-bar inset itself. When the banner is showing, it has
+            // already consumed that inset above, so strip it here too or
+            // the AppBar reserves it a second time, opening a gap between
+            // the banner and the tab's app bar.
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: showRoadBanner,
+              child: IndexedStack(index: _tabIndex, children: screens),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

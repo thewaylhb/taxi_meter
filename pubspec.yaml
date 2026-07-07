@@ -50,11 +50,16 @@ dependencies:
   intl: ^0.19.0
   # Keep the screen awake while a trip is running
   wakelock_plus: ^1.2.8
+  # Extract the bundled road dataset to a real file for random-access reads
+  path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
+  # Lets tests fake the extraction directory instead of hitting a real platform channel
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
