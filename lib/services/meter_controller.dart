@@ -93,7 +93,8 @@ class MeterController extends ChangeNotifier {
   /// going right now.
   double _currentSpeedMps = 0;
 
-  /// Highest [_currentSpeedMps] seen so far this trip, for the 최고속도 stat.
+  /// Highest [GpsFilter]-filtered speed seen so far this trip, for the
+  /// 최고속도 stat. Deliberately not [_currentSpeedMps] — see [_onPosition].
   double _maxSpeedMps = 0;
 
   /// True if the current [MeterState.finished] trip came from a snapshot
@@ -290,7 +291,6 @@ class MeterController extends ChangeNotifier {
     // Instantaneous display-only speed, tracked regardless of whether the
     // fix is accepted for fare billing purposes.
     _currentSpeedMps = position.speed > 0 ? position.speed : 0;
-    if (_currentSpeedMps > _maxSpeedMps) _maxSpeedMps = _currentSpeedMps;
 
     final fix = _gpsFilter.process(position);
     if (!fix.accepted) {
@@ -299,6 +299,14 @@ class MeterController extends ChangeNotifier {
       return;
     }
     gpsStatusMessage = null;
+
+    // Unlike currentSpeedKmh, 최고속도 is a sticky high-water mark for the
+    // whole trip: a single unfiltered spike would corrupt it permanently
+    // instead of just flashing on screen for a moment. So it's tracked off
+    // GpsFilter's implied speed (rejected fixes never reach here, and
+    // impliedSpeed is derived from filtered distance/time rather than the
+    // device's raw, noisier speed sensor).
+    if (fix.speedMps > _maxSpeedMps) _maxSpeedMps = fix.speedMps;
 
     final slowSeconds = fix.speedMps < _slowSpeedThresholdMps
         ? fix.timeDelta.inMilliseconds / 1000
