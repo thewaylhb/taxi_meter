@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../models/fare_mode.dart';
+import '../models/fare_settings.dart';
 import '../services/fare_meter.dart';
 import '../services/meter_controller.dart';
 import '../services/road_match_service.dart';
@@ -62,9 +63,7 @@ class _MeterScreenState extends State<MeterScreen> {
   Widget _buildIdle(BuildContext context) {
     final settings = widget.settingsController.settings;
     final mode = settings.mode;
-    final description = mode == FareMode.standard && settings.useCustomStandardRates
-        ? '사용자 설정 요금제'
-        : mode.description;
+    final description = dynamicFareModeDescription(mode, settings);
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -73,7 +72,7 @@ class _MeterScreenState extends State<MeterScreen> {
           Icon(Icons.local_taxi, size: 96, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 16),
           Text(mode.label, style: Theme.of(context).textTheme.titleLarge),
-          if (mode != FareMode.safeDriving)
+          if (description != null)
             Text(
               description,
               style: Theme.of(context).textTheme.bodyMedium,
@@ -452,7 +451,9 @@ class _MeterScreenState extends State<MeterScreen> {
   }
 
   Widget _fareBreakdownCard(BuildContext context) {
-    final fuelCostWon = _meter.fareWon - CarpoolFareMeter.baseFareWon;
+    final baseFareWon =
+        _meter.carpoolBaseFareWon ?? CarpoolFareMeter.defaultBaseFareWon;
+    final fuelCostWon = _meter.fareWon - baseFareWon;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -460,7 +461,7 @@ class _MeterScreenState extends State<MeterScreen> {
           children: [
             _breakdownRow('주행 거리', formatDistanceKm(_meter.distanceMeters)),
             _breakdownRow('연료비', formatWon(fuelCostWon)),
-            _breakdownRow('기본요금', formatWon(CarpoolFareMeter.baseFareWon)),
+            _breakdownRow('기본요금', formatWon(baseFareWon)),
             const Divider(height: 20),
             _breakdownRow('합계', formatWon(_meter.fareWon), emphasize: true),
           ],

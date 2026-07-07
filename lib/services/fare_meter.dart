@@ -166,7 +166,10 @@ class StandardFareMeter implements FareMeter {
 /// No time fare and no late-night surcharge — this isn't a commercial
 /// metered fare, just a fuel-cost split.
 class CarpoolFareMeter implements FareMeter {
-  static const int baseFareWon = 3000;
+  static const int defaultBaseFareWon = 3000;
+
+  /// Flat base fare, from settings.
+  final int baseFareWon;
 
   /// km travelled per liter of fuel, from settings.
   final double fuelEfficiencyKmPerLiter;
@@ -177,6 +180,7 @@ class CarpoolFareMeter implements FareMeter {
   double _distanceMeters = 0;
 
   CarpoolFareMeter({
+    this.baseFareWon = defaultBaseFareWon,
     required this.fuelEfficiencyKmPerLiter,
     required this.fuelPricePerLiterWon,
   });

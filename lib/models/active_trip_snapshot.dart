@@ -11,6 +11,7 @@ class ActiveTripSnapshot {
   final int fareWon;
   final double? fuelEfficiencyKmPerLiter;
   final double? fuelPricePerLiterWon;
+  final int? carpoolBaseFareWon;
 
   ActiveTripSnapshot({
     required this.mode,
@@ -20,6 +21,7 @@ class ActiveTripSnapshot {
     required this.fareWon,
     this.fuelEfficiencyKmPerLiter,
     this.fuelPricePerLiterWon,
+    this.carpoolBaseFareWon,
   });
 
   Map<String, dynamic> toJson() => {
@@ -30,6 +32,7 @@ class ActiveTripSnapshot {
         'fareWon': fareWon,
         'fuelEfficiencyKmPerLiter': fuelEfficiencyKmPerLiter,
         'fuelPricePerLiterWon': fuelPricePerLiterWon,
+        'carpoolBaseFareWon': carpoolBaseFareWon,
       };
 
   factory ActiveTripSnapshot.fromJson(Map<String, dynamic> json) {
@@ -45,6 +48,7 @@ class ActiveTripSnapshot {
       fuelEfficiencyKmPerLiter:
           (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble(),
       fuelPricePerLiterWon: (json['fuelPricePerLiterWon'] as num?)?.toDouble(),
+      carpoolBaseFareWon: (json['carpoolBaseFareWon'] as num?)?.toInt(),
     );
   }
 }

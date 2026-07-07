@@ -79,6 +79,7 @@ class MeterController extends ChangeNotifier {
   /// [CarpoolFareMeter].
   double? _fuelEfficiencyKmPerLiter;
   double? _fuelPricePerLiterWon;
+  int? _carpoolBaseFareWon;
 
   /// The slow-speed threshold the running trip's meter was started with;
   /// mirrors [StandardFareMeter.slowSpeedThresholdMps] since that's not
@@ -130,6 +131,7 @@ class MeterController extends ChangeNotifier {
     );
     _fuelEfficiencyKmPerLiter = snapshot.fuelEfficiencyKmPerLiter;
     _fuelPricePerLiterWon = snapshot.fuelPricePerLiterWon;
+    _carpoolBaseFareWon = snapshot.carpoolBaseFareWon;
     _startTime = snapshot.startTime;
     _endTime = snapshot.lastUpdateTime;
     recoveredFromCrash = true;
@@ -140,6 +142,10 @@ class MeterController extends ChangeNotifier {
   FareMode? get mode => _mode;
   double get distanceMeters => _meter?.totalDistanceMeters ?? 0;
   int get fareWon => _meter?.fareWon ?? 0;
+
+  /// The carpool base fare this trip was started with (or recovered with),
+  /// for the fare breakdown card. Null outside [FareMode.carpool].
+  int? get carpoolBaseFareWon => _carpoolBaseFareWon;
 
   /// Per-rider share of [fareWon] ("N빵"), rounded up to the nearest 100 won.
   /// With a single rider there's nothing to split, so it's the exact fare.
@@ -197,11 +203,13 @@ class MeterController extends ChangeNotifier {
     _fuelEfficiencyKmPerLiter =
         isCarpool ? settings.fuelEfficiencyKmPerLiter : null;
     _fuelPricePerLiterWon = isCarpool ? settings.fuelPricePerLiterWon : null;
+    _carpoolBaseFareWon = isCarpool ? settings.carpoolBaseFareWon.round() : null;
     if (settings.mode == FareMode.safeDriving) {
       _meter = NoFareMeter();
       _slowSpeedThresholdMps = StandardFareMeter.defaultSlowSpeedThresholdMps;
     } else if (isCarpool) {
       _meter = CarpoolFareMeter(
+        baseFareWon: settings.carpoolBaseFareWon.round(),
         fuelEfficiencyKmPerLiter: settings.fuelEfficiencyKmPerLiter,
         fuelPricePerLiterWon: settings.fuelPricePerLiterWon,
       );
@@ -274,6 +282,7 @@ class MeterController extends ChangeNotifier {
       fareWon: _meter!.fareWon,
       fuelEfficiencyKmPerLiter: _fuelEfficiencyKmPerLiter,
       fuelPricePerLiterWon: _fuelPricePerLiterWon,
+      carpoolBaseFareWon: _carpoolBaseFareWon,
     ));
   }
 
@@ -364,6 +373,7 @@ class MeterController extends ChangeNotifier {
     _meter = null;
     _fuelEfficiencyKmPerLiter = null;
     _fuelPricePerLiterWon = null;
+    _carpoolBaseFareWon = null;
     _startTime = null;
     _endTime = null;
     _maxSpeedMps = 0;

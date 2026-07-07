@@ -198,6 +198,21 @@ void main() {
       expect(meter.totalDistanceMeters, 10000);
     });
 
+    test('custom base fare overrides the 3,000원 default', () {
+      final meter = CarpoolFareMeter(
+        baseFareWon: 5000,
+        fuelEfficiencyKmPerLiter: 10,
+        fuelPricePerLiterWon: 2000,
+      );
+      meter.start(_at(12));
+      meter.update(
+        distanceDeltaMeters: 10000,
+        slowTimeDeltaSeconds: 0,
+        now: _at(12, 30),
+      );
+      expect(meter.fareWon, 5000 + 2000);
+    });
+
     test('better fuel efficiency lowers the fare', () {
       final meter = CarpoolFareMeter(
         fuelEfficiencyKmPerLiter: 20,

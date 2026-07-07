@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/fare_mode.dart';
+import '../models/fare_settings.dart';
 import '../services/settings_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _distancePulseWonController;
   late final TextEditingController _slowSpeedThresholdController;
   late final TextEditingController _timePulseSecondsController;
+  late final TextEditingController _carpoolBaseFareController;
   late final TextEditingController _efficiencyController;
   late final TextEditingController _fuelPriceController;
 
@@ -45,6 +47,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _timePulseSecondsController = TextEditingController(
       text: settings.standardTimePulseSeconds.toStringAsFixed(0),
     );
+    _carpoolBaseFareController = TextEditingController(
+      text: settings.carpoolBaseFareWon.toStringAsFixed(0),
+    );
     _efficiencyController = TextEditingController(
       text: settings.fuelEfficiencyKmPerLiter.toStringAsFixed(1),
     );
@@ -64,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _distancePulseWonController.dispose();
     _slowSpeedThresholdController.dispose();
     _timePulseSecondsController.dispose();
+    _carpoolBaseFareController.dispose();
     _efficiencyController.dispose();
     _fuelPriceController.dispose();
     super.dispose();
@@ -117,7 +123,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   RadioListTile<FareMode>(
                     value: mode,
                     title: Text(mode.label),
-                    subtitle: Text(mode.description),
+                    subtitle: switch (dynamicFareModeDescription(mode, settings)) {
+                      final desc? => Text(desc),
+                      null => null,
+                    },
                   ),
               ],
             ),
@@ -229,6 +238,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ],
           if (settings.mode == FareMode.carpool) ...[
+            const Divider(height: 32),
+            _rateField(
+              title: '기본요금 설정',
+              controller: _carpoolBaseFareController,
+              labelText: '기본요금',
+              suffixText: '원',
+              onSave: (value) => _saveNumberField(
+                value: value,
+                errorMessage: '올바른 기본요금 값을 입력하세요.',
+                onValid: widget.settingsController.setCarpoolBaseFareWon,
+              ),
+            ),
             const Divider(height: 32),
             _rateField(
               title: '차량 연비 설정',

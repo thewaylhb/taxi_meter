@@ -20,6 +20,7 @@ class SettingsController extends ChangeNotifier {
   static const _keyStandardSlowSpeedThresholdKmh =
       'standard_slow_speed_threshold_kmh';
   static const _keyStandardTimePulseSeconds = 'standard_time_pulse_seconds';
+  static const _keyCarpoolBaseFareWon = 'carpool_base_fare_won';
   static const _keyFuelEfficiency = 'fuel_efficiency_km_per_liter';
   static const _keyFuelPrice = 'fuel_price_per_liter_won';
 
@@ -61,6 +62,8 @@ class SettingsController extends ChangeNotifier {
       standardTimePulseSeconds:
           prefs.getDouble(_keyStandardTimePulseSeconds) ??
               defaults.standardTimePulseSeconds,
+      carpoolBaseFareWon:
+          prefs.getDouble(_keyCarpoolBaseFareWon) ?? defaults.carpoolBaseFareWon,
       fuelEfficiencyKmPerLiter:
           prefs.getDouble(_keyFuelEfficiency) ?? defaults.fuelEfficiencyKmPerLiter,
       fuelPricePerLiterWon:
@@ -130,6 +133,13 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyStandardTimePulseSeconds, seconds);
+  }
+
+  Future<void> setCarpoolBaseFareWon(double won) async {
+    _settings = _settings.copyWith(carpoolBaseFareWon: won);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyCarpoolBaseFareWon, won);
   }
 
   Future<void> setFuelEfficiency(double kmPerLiter) async {
