@@ -39,18 +39,40 @@ const double _cellDeg = 0.01;
 const double _snapRadiusMeters = 35.0;
 const double _metersPerDeg = 111320.0;
 
-/// Result of a nearest-link search: the matched link (if any) plus the
-/// direction vector of the specific segment it snapped to, in local
-/// east/north meters. The segment vector is used to compare the road's
-/// orientation against the vehicle's estimated heading.
-class _NearestResult {
-  final _DecodedLink? link;
+/// A nearest-link match, carrying enough to both display (road name/speed
+/// limit) and disambiguate it from a nearby road (the matched segment's
+/// direction, as a local east/north vector — only its direction matters,
+/// not its magnitude).
+///
+/// Compares equal by road name + speed limit only (not by segment
+/// direction, which varies fix-to-fix even while on the same road), so the
+/// hysteresis state machine in [RoadMatchService] can tell "still the same
+/// road" apart from "a different road is now nearest" without caring which
+/// physical link/segment object produced it. This also makes it possible to
+/// drive [RoadMatchService.debugOnPosition] with synthetic candidates in
+/// tests, instead of needing real coordinates from the bundled dataset.
+@visibleForTesting
+class RoadMatchCandidate {
+  final String? roadName;
+  final int maxSpeedKmh;
   final double segDx;
   final double segDy;
 
-  const _NearestResult(this.link, this.segDx, this.segDy);
+  const RoadMatchCandidate({
+    required this.roadName,
+    required this.maxSpeedKmh,
+    this.segDx = 0,
+    this.segDy = 0,
+  });
 
-  static const none = _NearestResult(null, 0, 0);
+  @override
+  bool operator ==(Object other) =>
+      other is RoadMatchCandidate &&
+      other.roadName == roadName &&
+      other.maxSpeedKmh == maxSpeedKmh;
+
+  @override
+  int get hashCode => Object.hash(roadName, maxSpeedKmh);
 }
 
 /// A single GPS fix kept only long enough to estimate the vehicle's current
@@ -63,14 +85,26 @@ class _Fix {
   const _Fix(this.lat, this.lon, this.time);
 }
 
-/// A candidate link that has become the nearest match but hasn't yet been
-/// adopted as [RoadMatchService._matchedLink] — see the dwell-time logic in
-/// [RoadMatchService._onPosition].
+/// A candidate that has become the nearest match but hasn't yet been
+/// adopted as [RoadMatchService._matchedCandidate] — see the dwell-time
+/// logic in [RoadMatchService._onPosition].
 class _Pending {
-  final _DecodedLink? link;
+  final RoadMatchCandidate? candidate;
   final DateTime since;
 
-  const _Pending(this.link, this.since);
+  const _Pending(this.candidate, this.since);
+}
+
+/// Raw result of the real nearest-link search over the bundled dataset,
+/// before it's wrapped into a [RoadMatchCandidate].
+class _NearestResult {
+  final _DecodedLink? link;
+  final double segDx;
+  final double segDy;
+
+  const _NearestResult(this.link, this.segDx, this.segDy);
+
+  static const none = _NearestResult(null, 0, 0);
 }
 
 int _floorDiv(double v, double cell) => (v / cell).floor();
@@ -91,6 +125,18 @@ const int _maxStringTableBytes = 16 * 1024 * 1024;
 /// while a trip is actually running (see [RootScreen]) since that's the
 /// only time the road/speed-limit banner is shown.
 class RoadMatchService extends ChangeNotifier {
+  RoadMatchService() : _debugLookup = null;
+
+  /// Drives the hysteresis state machine with a synthetic lookup instead of
+  /// the real bundled dataset, so tests can exercise dwell-time/heading
+  /// behavior without needing real nearby-road coordinates. See
+  /// [debugOnPosition].
+  @visibleForTesting
+  RoadMatchService.debugWithLookup(this._debugLookup);
+
+  final Future<RoadMatchCandidate?> Function(double lat, double lon)?
+      _debugLookup;
+
   RandomAccessFile? _raf;
   Future<void> _ioQueue = Future.value();
 
@@ -114,10 +160,10 @@ class RoadMatchService extends ChangeNotifier {
   // --- Hysteresis state (prevents the displayed road/speed-limit from
   // flickering to a nearby ramp/side-road link near interchanges) ---
 
-  /// Link currently adopted for display. `null` means "no road nearby" is
-  /// the adopted state, which is a real state distinct from [_hasMatchedOnce]
-  /// being false (nothing adopted yet).
-  _DecodedLink? _matchedLink;
+  /// Candidate currently adopted for display. `null` means "no road nearby"
+  /// is the adopted state, which is a real state distinct from
+  /// [_hasMatchedOnce] being false (nothing adopted yet).
+  RoadMatchCandidate? _matchedCandidate;
   bool _hasMatchedOnce = false;
 
   /// The last few raw fixes, used only to estimate the current heading.
@@ -126,12 +172,18 @@ class RoadMatchService extends ChangeNotifier {
   static const double _minHeadingDisplacementMeters = 8.0;
   static const double _minHeadingSpeedKmh = 8.0;
 
-  /// A candidate link that has overtaken [_matchedLink] as the nearest
+  /// A candidate that has overtaken [_matchedCandidate] as the nearest
   /// match, and how long it's been the nearest continuously.
   _Pending? _pending;
   static const Duration _dwellDefault = Duration(seconds: 3);
   static const Duration _dwellHeadingAligned = Duration(seconds: 1);
-  static const double _headingAlignedDegrees = 25.0;
+
+  /// How much closer (in degrees) the candidate's own direction must be to
+  /// the estimated heading than the currently-matched road's direction is,
+  /// before we trust that the vehicle has actually turned onto it. Tunable;
+  /// not load-bearing for correctness the way the *relative* comparison
+  /// itself is (see [_requiredDwell]).
+  static const double _headingRelativeMarginDegrees = 15.0;
 
   Future<void> start() async {
     if (_positionSub != null) return;
@@ -308,65 +360,80 @@ class RoadMatchService extends ChangeNotifier {
     final now = position.timestamp;
     _recordFix(lat, lon, now);
 
-    _NearestResult nearest;
+    RoadMatchCandidate? candidate;
     try {
-      nearest = await _nearest(lat, lon);
+      candidate = _debugLookup != null
+          ? await _debugLookup(lat, lon)
+          : await _lookupReal(lat, lon);
     } catch (_) {
       // Road data unavailable/corrupt: keep showing the last known match
       // (or none) rather than letting the banner crash the app.
       return;
     }
-    final candidate = nearest.link;
 
     // Nothing adopted yet (service just started): take the first reading
     // immediately, there's no prior match that could "flicker" away from.
     if (!_hasMatchedOnce) {
       _hasMatchedOnce = true;
-      _matchedLink = candidate;
+      _matchedCandidate = candidate;
       _pending = null;
-      _applyMatchedLink();
+      _applyMatched();
       return;
     }
 
-    if (identical(candidate, _matchedLink)) {
-      // Still tracking the same link (or still "no road nearby"): any
-      // earlier switch attempt was transient, so drop it.
+    if (candidate == _matchedCandidate) {
+      // Still tracking the same road (or still "no road nearby"): any
+      // earlier switch attempt was transient, so drop it. Refresh the
+      // stored candidate (segDx/segDy can differ fix-to-fix even for the
+      // same road) so _requiredDwell always compares against the most
+      // recently confirmed direction of the road we're actually on.
+      _matchedCandidate = candidate;
       _pending = null;
       return;
     }
 
-    // The nearest link has changed. Require it to either stay the nearest
+    // The nearest road has changed. Require it to either stay the nearest
     // for a dwell period, or clearly line up with our direction of travel,
     // before actually switching the displayed road/speed limit. This is
     // what keeps a ramp that's momentarily closer than the main road (GPS
     // noise near an interchange) from instantly overwriting the display.
     final pending = _pending;
-    if (pending == null || !identical(pending.link, candidate)) {
+    if (pending == null || pending.candidate != candidate) {
       _pending = _Pending(candidate, now);
       return;
     }
 
     final elapsed = now.difference(pending.since);
-    if (elapsed < _requiredDwell(candidate, nearest)) {
+    if (elapsed < _requiredDwell(candidate)) {
       return;
     }
 
-    _matchedLink = candidate;
+    _matchedCandidate = candidate;
     _pending = null;
-    _applyMatchedLink();
+    _applyMatched();
   }
 
-  void _applyMatchedLink() {
-    final next = _matchedLink == null
+  void _applyMatched() {
+    final matched = _matchedCandidate;
+    final next = matched == null
         ? null
-        : RoadMatch(
-            roadName: _matchedLink!.roadName,
-            maxSpeedKmh: _matchedLink!.maxSpd,
-          );
+        : RoadMatch(roadName: matched.roadName, maxSpeedKmh: matched.maxSpeedKmh);
     if (!(next?.sameAs(_current) ?? (next == null && _current == null))) {
       _current = next;
       notifyListeners();
     }
+  }
+
+  Future<RoadMatchCandidate?> _lookupReal(double lat, double lon) async {
+    final r = await _nearest(lat, lon);
+    final link = r.link;
+    if (link == null) return null;
+    return RoadMatchCandidate(
+      roadName: link.roadName,
+      maxSpeedKmh: link.maxSpd,
+      segDx: r.segDx,
+      segDy: r.segDy,
+    );
   }
 
   void _recordFix(double lat, double lon, DateTime time) {
@@ -406,17 +473,36 @@ class RoadMatchService extends ChangeNotifier {
 
   /// How long [candidate] must remain the nearest link before we actually
   /// switch the display to it. Defaults to a flat dwell period (absorbs GPS
-  /// jitter near an interchange); shortened when the vehicle's estimated
-  /// heading clearly lines up with the candidate road's own direction,
-  /// since that's good evidence we're actually turning onto it rather than
-  /// just passing close to it on the main road.
-  Duration _requiredDwell(_DecodedLink? candidate, _NearestResult nearest) {
+  /// jitter near an interchange); shortened only when the vehicle's
+  /// estimated heading has swung meaningfully *closer* to the candidate's
+  /// own direction than to the currently-matched road's — good evidence
+  /// we're actually turning onto it rather than just passing close to it.
+  ///
+  /// This is deliberately a comparison against the currently-matched road's
+  /// angle, not a fixed absolute threshold on the candidate's angle alone:
+  /// at a shallow-angle national-road fork, a ramp can diverge from the
+  /// main road by less than any reasonable fixed threshold for a good
+  /// distance past the split, while the vehicle is still on the main road.
+  /// An absolute threshold would fast-track that as confidently as a real
+  /// turn. Comparing the two angles instead only fast-tracks once the
+  /// heading has actually rotated toward the candidate, which is what
+  /// happens as the vehicle follows the fork's curve — however shallow the
+  /// fork looks from a single static angle.
+  Duration _requiredDwell(RoadMatchCandidate? candidate) {
     if (candidate == null) return _dwellDefault;
+    final current = _matchedCandidate;
+    if (current == null) return _dwellDefault;
     final heading = _estimateHeading();
     if (heading == null) return _dwellDefault;
-    final angle =
-        _angleToLineDegrees(heading.dx, heading.dy, nearest.segDx, nearest.segDy);
-    return angle <= _headingAlignedDegrees ? _dwellHeadingAligned : _dwellDefault;
+
+    final angleCandidate = _angleToLineDegrees(
+        heading.dx, heading.dy, candidate.segDx, candidate.segDy);
+    final angleCurrent = _angleToLineDegrees(
+        heading.dx, heading.dy, current.segDx, current.segDy);
+
+    final swungTowardCandidate =
+        angleCandidate + _headingRelativeMarginDegrees < angleCurrent;
+    return swungTowardCandidate ? _dwellHeadingAligned : _dwellDefault;
   }
 
   /// Unsigned angle in degrees (0-90) between direction vector (dx1, dy1)
@@ -441,6 +527,13 @@ class RoadMatchService extends ChangeNotifier {
         ? null
         : RoadMatch(roadName: r.link!.roadName, maxSpeedKmh: r.link!.maxSpd);
   }
+
+  /// Exposed for tests: runs the exact hysteresis/dwell-time path
+  /// `start()`'s position-stream subscription uses, without needing a real
+  /// GPS/platform stream. Combine with [RoadMatchService.debugWithLookup] to
+  /// drive it with synthetic candidates.
+  @visibleForTesting
+  Future<void> debugOnPosition(Position position) => _onPosition(position);
 
   Future<_NearestResult> _nearest(double lat, double lon) async {
     await _ensureLoaded();
