@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Thin wrapper around geolocator for permission handling + the raw position
 /// stream. No accounts, no backend — this only talks to the OS location API.
@@ -56,7 +57,21 @@ class LocationService {
     if (permission == LocationPermission.deniedForever) {
       return '위치 권한이 영구적으로 거부되었습니다. 앱 설정에서 권한을 허용해주세요.';
     }
+
+    await _ensureNotificationPermission();
     return null;
+  }
+
+  /// Android 13+ requires a runtime grant to show the foreground-service
+  /// "운행 중" notification; without it the GPS stream still runs fine, the
+  /// notification is just silently dropped. Best-effort only: a denial
+  /// here doesn't block the trip from starting.
+  static Future<void> _ensureNotificationPermission() async {
+    if (!Platform.isAndroid) return;
+    final status = await Permission.notification.status;
+    if (status.isDenied) {
+      await Permission.notification.request();
+    }
   }
 
   static Stream<Position> positionStream() {

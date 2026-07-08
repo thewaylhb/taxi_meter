@@ -23,7 +23,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+11
+version: 1.0.0+18
 
 environment:
   sdk: ^3.12.2
@@ -52,6 +52,9 @@ dependencies:
   wakelock_plus: ^1.2.8
   # Extract the bundled road dataset to a real file for random-access reads
   path_provider: ^2.1.4
+  # Android 13+ runtime notification permission (for the foreground-service
+  # "운행 중" notification; geolocator/OS only cover location permission)
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4
