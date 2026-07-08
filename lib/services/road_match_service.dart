@@ -39,6 +39,40 @@ const double _cellDeg = 0.01;
 const double _snapRadiusMeters = 35.0;
 const double _metersPerDeg = 111320.0;
 
+/// Result of a nearest-link search: the matched link (if any) plus the
+/// direction vector of the specific segment it snapped to, in local
+/// east/north meters. The segment vector is used to compare the road's
+/// orientation against the vehicle's estimated heading.
+class _NearestResult {
+  final _DecodedLink? link;
+  final double segDx;
+  final double segDy;
+
+  const _NearestResult(this.link, this.segDx, this.segDy);
+
+  static const none = _NearestResult(null, 0, 0);
+}
+
+/// A single GPS fix kept only long enough to estimate the vehicle's current
+/// direction of travel (see [RoadMatchService._estimateHeading]).
+class _Fix {
+  final double lat;
+  final double lon;
+  final DateTime time;
+
+  const _Fix(this.lat, this.lon, this.time);
+}
+
+/// A candidate link that has become the nearest match but hasn't yet been
+/// adopted as [RoadMatchService._matchedLink] — see the dwell-time logic in
+/// [RoadMatchService._onPosition].
+class _Pending {
+  final _DecodedLink? link;
+  final DateTime since;
+
+  const _Pending(this.link, this.since);
+}
+
 int _floorDiv(double v, double cell) => (v / cell).floor();
 
 /// Bump this whenever tool/roaddata/build_roaddata.dart's output changes, so
@@ -76,6 +110,28 @@ class RoadMatchService extends ChangeNotifier {
 
   bool _ready = false;
   Future<void>? _loadFuture;
+
+  // --- Hysteresis state (prevents the displayed road/speed-limit from
+  // flickering to a nearby ramp/side-road link near interchanges) ---
+
+  /// Link currently adopted for display. `null` means "no road nearby" is
+  /// the adopted state, which is a real state distinct from [_hasMatchedOnce]
+  /// being false (nothing adopted yet).
+  _DecodedLink? _matchedLink;
+  bool _hasMatchedOnce = false;
+
+  /// The last few raw fixes, used only to estimate the current heading.
+  final List<_Fix> _recentFixes = [];
+  static const int _headingFixCount = 3;
+  static const double _minHeadingDisplacementMeters = 8.0;
+  static const double _minHeadingSpeedKmh = 8.0;
+
+  /// A candidate link that has overtaken [_matchedLink] as the nearest
+  /// match, and how long it's been the nearest continuously.
+  _Pending? _pending;
+  static const Duration _dwellDefault = Duration(seconds: 3);
+  static const Duration _dwellHeadingAligned = Duration(seconds: 1);
+  static const double _headingAlignedDegrees = 25.0;
 
   Future<void> start() async {
     if (_positionSub != null) return;
@@ -247,26 +303,146 @@ class RoadMatchService extends ChangeNotifier {
   }
 
   Future<void> _onPosition(Position position) async {
-    RoadMatch? next;
+    final lat = position.latitude;
+    final lon = position.longitude;
+    final now = position.timestamp;
+    _recordFix(lat, lon, now);
+
+    _NearestResult nearest;
     try {
-      next = await _matchAt(position.latitude, position.longitude);
+      nearest = await _nearest(lat, lon);
     } catch (_) {
       // Road data unavailable/corrupt: keep showing the last known match
       // (or none) rather than letting the banner crash the app.
       return;
     }
+    final candidate = nearest.link;
+
+    // Nothing adopted yet (service just started): take the first reading
+    // immediately, there's no prior match that could "flicker" away from.
+    if (!_hasMatchedOnce) {
+      _hasMatchedOnce = true;
+      _matchedLink = candidate;
+      _pending = null;
+      _applyMatchedLink();
+      return;
+    }
+
+    if (identical(candidate, _matchedLink)) {
+      // Still tracking the same link (or still "no road nearby"): any
+      // earlier switch attempt was transient, so drop it.
+      _pending = null;
+      return;
+    }
+
+    // The nearest link has changed. Require it to either stay the nearest
+    // for a dwell period, or clearly line up with our direction of travel,
+    // before actually switching the displayed road/speed limit. This is
+    // what keeps a ramp that's momentarily closer than the main road (GPS
+    // noise near an interchange) from instantly overwriting the display.
+    final pending = _pending;
+    if (pending == null || !identical(pending.link, candidate)) {
+      _pending = _Pending(candidate, now);
+      return;
+    }
+
+    final elapsed = now.difference(pending.since);
+    if (elapsed < _requiredDwell(candidate, nearest)) {
+      return;
+    }
+
+    _matchedLink = candidate;
+    _pending = null;
+    _applyMatchedLink();
+  }
+
+  void _applyMatchedLink() {
+    final next = _matchedLink == null
+        ? null
+        : RoadMatch(
+            roadName: _matchedLink!.roadName,
+            maxSpeedKmh: _matchedLink!.maxSpd,
+          );
     if (!(next?.sameAs(_current) ?? (next == null && _current == null))) {
       _current = next;
       notifyListeners();
     }
   }
 
-  /// Exposed for tests: runs the exact matching path `_onPosition` uses,
-  /// without needing a real GPS/platform stream.
-  @visibleForTesting
-  Future<RoadMatch?> debugMatchAt(double lat, double lon) => _matchAt(lat, lon);
+  void _recordFix(double lat, double lon, DateTime time) {
+    _recentFixes.add(_Fix(lat, lon, time));
+    if (_recentFixes.length > _headingFixCount) {
+      _recentFixes.removeAt(0);
+    }
+  }
 
-  Future<RoadMatch?> _matchAt(double lat, double lon) async {
+  /// Estimates the vehicle's current direction of travel from the oldest to
+  /// the newest of the last [_headingFixCount] fixes, as a local east/north
+  /// meter vector (not normalized — only its direction is used). Returns
+  /// `null` when there isn't enough history yet, or the vehicle is moving
+  /// too slowly/too little for the fixes' GPS noise to give a trustworthy
+  /// direction (e.g. stopped in traffic near a junction).
+  _Fix? get _oldestFix =>
+      _recentFixes.length >= _headingFixCount ? _recentFixes.first : null;
+
+  ({double dx, double dy})? _estimateHeading() {
+    final oldest = _oldestFix;
+    if (oldest == null) return null;
+    final newest = _recentFixes.last;
+    final elapsedMs = newest.time.difference(oldest.time).inMilliseconds;
+    if (elapsedMs <= 0) return null;
+
+    final metersPerDegLon = _metersPerDeg * cos(oldest.lat * pi / 180);
+    final dx = (newest.lon - oldest.lon) * metersPerDegLon;
+    final dy = (newest.lat - oldest.lat) * _metersPerDeg;
+    final distance = sqrt(dx * dx + dy * dy);
+    if (distance < _minHeadingDisplacementMeters) return null;
+
+    final speedKmh = distance / elapsedMs * 1000 * 3.6;
+    if (speedKmh < _minHeadingSpeedKmh) return null;
+
+    return (dx: dx, dy: dy);
+  }
+
+  /// How long [candidate] must remain the nearest link before we actually
+  /// switch the display to it. Defaults to a flat dwell period (absorbs GPS
+  /// jitter near an interchange); shortened when the vehicle's estimated
+  /// heading clearly lines up with the candidate road's own direction,
+  /// since that's good evidence we're actually turning onto it rather than
+  /// just passing close to it on the main road.
+  Duration _requiredDwell(_DecodedLink? candidate, _NearestResult nearest) {
+    if (candidate == null) return _dwellDefault;
+    final heading = _estimateHeading();
+    if (heading == null) return _dwellDefault;
+    final angle =
+        _angleToLineDegrees(heading.dx, heading.dy, nearest.segDx, nearest.segDy);
+    return angle <= _headingAlignedDegrees ? _dwellHeadingAligned : _dwellDefault;
+  }
+
+  /// Unsigned angle in degrees (0-90) between direction vector (dx1, dy1)
+  /// and the *line* through (dx2, dy2) — i.e. it folds to the acute angle,
+  /// since a road link's digitized point order doesn't necessarily match
+  /// the direction of travel along it.
+  double _angleToLineDegrees(double dx1, double dy1, double dx2, double dy2) {
+    final mag1 = sqrt(dx1 * dx1 + dy1 * dy1);
+    final mag2 = sqrt(dx2 * dx2 + dy2 * dy2);
+    if (mag1 == 0 || mag2 == 0) return 90.0;
+    final cosTheta = ((dx1 * dx2 + dy1 * dy2) / (mag1 * mag2)).clamp(-1.0, 1.0);
+    final degrees = acos(cosTheta) * 180 / pi;
+    return degrees > 90 ? 180 - degrees : degrees;
+  }
+
+  /// Exposed for tests: runs the plain nearest-link lookup with no
+  /// hysteresis/dwell state, without needing a real GPS/platform stream.
+  @visibleForTesting
+  Future<RoadMatch?> debugMatchAt(double lat, double lon) async {
+    final r = await _nearest(lat, lon);
+    return r.link == null
+        ? null
+        : RoadMatch(roadName: r.link!.roadName, maxSpeedKmh: r.link!.maxSpd);
+  }
+
+  Future<_NearestResult> _nearest(double lat, double lon) async {
     await _ensureLoaded();
     final latIdx = _floorDiv(lat, _cellDeg);
     final lonIdx = _floorDiv(lon, _cellDeg);
@@ -274,6 +450,8 @@ class RoadMatchService extends ChangeNotifier {
     final metersPerDegLon = _metersPerDeg * cos(lat * pi / 180);
     double bestDistSq = double.infinity;
     _DecodedLink? best;
+    double bestDx = 0;
+    double bestDy = 0;
 
     final neighborTiles = <Future<List<_DecodedLink>>>[];
     for (int dla = -1; dla <= 1; dla++) {
@@ -308,13 +486,15 @@ class RoadMatchService extends ChangeNotifier {
           if (distSq < bestDistSq) {
             bestDistSq = distSq;
             best = link;
+            bestDx = dx;
+            bestDy = dy;
           }
         }
       }
     }
 
     return (best != null && bestDistSq <= _snapRadiusMeters * _snapRadiusMeters)
-        ? RoadMatch(roadName: best.roadName, maxSpeedKmh: best.maxSpd)
-        : null;
+        ? _NearestResult(best, bestDx, bestDy)
+        : _NearestResult.none;
   }
 }
