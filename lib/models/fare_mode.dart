@@ -29,7 +29,7 @@ enum FareMode {
       case FareMode.carpool:
         return '기본요금 3,000원 + 주행거리 할증';
       case FareMode.safeDriving:
-        return '요금 계산 없이 속도와 도로 정보만 표시';
+        return '안전하게 주행하세요';
     }
   }
 }
