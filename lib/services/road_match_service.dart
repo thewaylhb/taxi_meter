@@ -196,6 +196,20 @@ class RoadMatchService extends ChangeNotifier {
   Future<void> stop() async {
     await _positionSub?.cancel();
     _positionSub = null;
+
+    // Drop the hysteresis state along with the result. Keeping
+    // [_matchedCandidate] across a stop would leave the service claiming to
+    // already display a road it no longer displays: on the next [start],
+    // a first fix matching that same stale candidate takes the "still the
+    // same road" early return in [_onPosition] and never calls
+    // [_applyMatched], so the banner stays empty for the entire trip. That
+    // is the common case, not a corner one — the next trip usually starts
+    // exactly where the last one ended.
+    _matchedCandidate = null;
+    _hasMatchedOnce = false;
+    _pending = null;
+    _recentFixes.clear();
+
     if (_current != null) {
       _current = null;
       notifyListeners();

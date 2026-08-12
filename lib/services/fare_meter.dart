@@ -40,11 +40,20 @@ abstract class FareMeter {
 ///   billable time far below the real elapsed time.
 /// - Late-night surcharge, applied per-increment (so a trip crossing a
 ///   band boundary is billed correctly on each side): +20% from 22:00 to
-///   23:00, +40% from 23:00 to 02:00, +20% from 02:00 to 04:00.
+///   23:00, +40% from 23:00 to 02:00, +20% from 02:00 to 04:00. Seoul's
+///   published table states these as per-pulse amounts rather than as a
+///   rounded total — 131 m / 30 s costs 120 won at +20% and 140 won at
+///   +40% — so the multiplier is applied to each pulse and the running
+///   total is deliberately *not* snapped to 100-won steps.
+/// - The surcharged base fare *is* rounded, to the nearest 100 won, which
+///   is what turns 4,800 into the published 5,800 (+20%) and 6,700 (+40%)
+///   rather than the bare products 5,760 and 6,720.
 /// - Suburban ("시외") surcharge: +20% on any increment driven while
 ///   [isSuburban] is flagged, e.g. by the driver toggling it on once the
-///   trip leaves the licensed service area. Stacks multiplicatively with
-///   the late-night surcharge, same as the real meter rule.
+///   trip leaves the licensed service area. Stacks *additively* with the
+///   late-night surcharge: Seoul caps the combined 심야·시계외 surcharge at
+///   60%, which is 40% + 20%. Multiplying them would give 68% and exceed
+///   the published cap.
 class StandardFareMeter implements FareMeter {
   static const int defaultBaseFareWon = 4800;
   static const double defaultBaseDistanceMeters = 1600;
@@ -100,7 +109,19 @@ class StandardFareMeter implements FareMeter {
     _realDistanceMeters = 0;
     _billableProgressMeters = 0;
     _pulsesCharged = 0;
-    _fareWon = _applySurcharges(baseFareWon, now, isSuburban: false);
+    _fareWon = surchargedBaseFareWon(now);
+  }
+
+  /// The base fare actually charged at [now], with the late-night surcharge
+  /// applied and rounded to the nearest 100 won ("십원단위에 반올림").
+  ///
+  /// Rounding is skipped when no surcharge applies, so a custom base fare
+  /// configured in settings is charged exactly as entered rather than being
+  /// silently snapped to a round number.
+  int surchargedBaseFareWon(DateTime now) {
+    final multiplier = lateNightMultiplier(now);
+    if (multiplier == 1.0) return baseFareWon;
+    return (baseFareWon * multiplier / 100).round() * 100;
   }
 
   @override
@@ -137,9 +158,16 @@ class StandardFareMeter implements FareMeter {
   }
 
   int _applySurcharges(int amount, DateTime now, {required bool isSuburban}) {
-    final multiplier = lateNightMultiplier(now) *
-        (isSuburban ? suburbanSurchargeMultiplier : 1.0);
-    return (amount * multiplier).round();
+    return (amount * combinedMultiplier(now, isSuburban: isSuburban)).round();
+  }
+
+  /// Combined 심야 + 시계외 surcharge multiplier. The two surcharge *rates*
+  /// add rather than compound, so the worst case is 1 + 0.4 + 0.2 = 1.6,
+  /// matching Seoul's published "중복할증 최대 60%" cap.
+  static double combinedMultiplier(DateTime now, {required bool isSuburban}) {
+    final nightRate = lateNightMultiplier(now) - 1.0;
+    final suburbanRate = isSuburban ? suburbanSurchargeMultiplier - 1.0 : 0.0;
+    return 1.0 + nightRate + suburbanRate;
   }
 
   /// Seoul's late-night surcharge schedule: 20% (22-23h), 40% (23-02h),

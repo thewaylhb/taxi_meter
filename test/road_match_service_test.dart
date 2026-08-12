@@ -284,5 +284,50 @@ void main() {
       expect(service.current?.roadName, '완만한분기로');
       expect(service.current?.maxSpeedKmh, 40);
     });
+
+    test(
+        'a trip restarted on the same road republishes it — this is the '
+        'reported bug: stop() used to keep the adopted candidate, so the '
+        'first fix of the next trip took the "same road" early return and '
+        'the banner stayed empty for the whole trip', () async {
+      final service = serviceWithScript([mainRoad]);
+
+      await service.debugOnPosition(posAt(0));
+      expect(service.current?.roadName, '메인도로');
+
+      // Trip ends. The driver drops the passenger off and starts the next
+      // trip from the same spot, on the same road.
+      await service.stop();
+      expect(service.current, isNull);
+
+      await service.debugOnPosition(posAt(10));
+      expect(service.current?.roadName, '메인도로');
+      expect(service.current?.maxSpeedKmh, 100);
+    });
+
+    test('stop() clears pending and heading state, not just the result',
+        () async {
+      final service = serviceWithScript([
+        mainRoad, mainRoad, mainRoad,
+        rampUnaligned, // becomes pending, but never dwells long enough
+      ]);
+
+      await service.debugOnPosition(posAt(0));
+      await service.debugOnPosition(posAt(1));
+      await service.debugOnPosition(posAt(2));
+      await service.debugOnPosition(posAt(2.5));
+      expect(service.current?.roadName, '메인도로',
+          reason: 'ramp is only pending, not adopted');
+
+      await service.stop();
+
+      // The next trip's first fix is the ramp. A leftover _pending from the
+      // previous trip must not let it skip its own dwell period — but as
+      // the first fix after a restart it is adopted immediately, which is
+      // the documented first-fix behavior, not the pending shortcut.
+      await service.debugOnPosition(posAt(20));
+      expect(service.current?.roadName, '진출램프');
+      expect(service.current?.maxSpeedKmh, 40);
+    });
   });
 }

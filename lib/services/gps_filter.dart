@@ -71,6 +71,14 @@ class GpsFilter {
   static const Duration maxBillableGap = Duration(seconds: 5);
 
   Position? _anchor;
+
+  /// When the vehicle was at [_anchor]. Tracked separately from
+  /// [_lastFixTime] because the anchor deliberately lags behind the fix
+  /// stream while movement stays inside the jitter threshold: distance is
+  /// always measured from the anchor, so the speed derived from it has to
+  /// be measured over the matching span or it comes out inflated by however
+  /// many fixes the anchor sat still for.
+  DateTime? _anchorTime;
   DateTime? _lastFixTime;
 
   /// Feed a raw position fix and get back the filtered contribution.
@@ -84,8 +92,9 @@ class GpsFilter {
       );
     }
 
-    if (_anchor == null || _lastFixTime == null) {
+    if (_anchor == null || _lastFixTime == null || _anchorTime == null) {
       _anchor = position;
+      _anchorTime = now;
       _lastFixTime = now;
       return const FilteredFix(accepted: true);
     }
@@ -101,7 +110,12 @@ class GpsFilter {
       position.latitude,
       position.longitude,
     );
-    final impliedSpeed = rawDistance / (timeDelta.inMilliseconds / 1000);
+    // Measured against the anchor's own timestamp, not the previous fix's:
+    // both terms then describe the same span, so a crawl that takes several
+    // fixes to clear [minMovementMeters] reports its real speed instead of
+    // (accumulated distance) / (one fix interval).
+    final anchorTimeDelta = now.difference(_anchorTime!);
+    final impliedSpeed = rawDistance / (anchorTimeDelta.inMilliseconds / 1000);
 
     if (impliedSpeed > maxPlausibleSpeedMps) {
       // Likely a GPS jump. Reject the fix but keep the old anchor and clock
@@ -114,8 +128,18 @@ class GpsFilter {
         timeDelta > maxBillableGap ? maxBillableGap : timeDelta;
 
     if (rawDistance < minMovementMeters) {
-      // Stationary jitter: don't move the anchor, don't add distance, but
-      // do report elapsed time so slow/stopped time-fare can still accrue.
+      // Stationary jitter: don't add distance, but do report elapsed time so
+      // slow/stopped time-fare can still accrue.
+      //
+      // Staying inside the noise radius for longer than [maxBillableGap]
+      // means the vehicle is genuinely stopped rather than crawling, so
+      // re-anchor here. Otherwise the anchor timestamp would keep aging for
+      // the whole stop, and the first fix after pulling away would divide a
+      // few meters by minutes of standing time and report a near-zero speed.
+      if (anchorTimeDelta > maxBillableGap) {
+        _anchor = position;
+        _anchorTime = now;
+      }
       return FilteredFix(
         accepted: true,
         distanceDeltaMeters: 0,
@@ -125,6 +149,7 @@ class GpsFilter {
     }
 
     _anchor = position;
+    _anchorTime = now;
     return FilteredFix(
       accepted: true,
       distanceDeltaMeters: rawDistance,
@@ -135,6 +160,7 @@ class GpsFilter {
 
   void reset() {
     _anchor = null;
+    _anchorTime = null;
     _lastFixTime = null;
   }
 }
