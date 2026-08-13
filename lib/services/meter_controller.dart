@@ -125,6 +125,17 @@ class MeterController extends ChangeNotifier {
     // running and must not be clobbered by the stale snapshot.
     if (state != MeterState.idle) return;
 
+    // A safe-driving trip has no fare to settle, so the interrupted trip goes
+    // straight into the trip log instead of resurfacing as a finished trip
+    // waiting on a settlement button that doesn't apply to it.
+    if (snapshot.mode == FareMode.safeDriving) {
+      await _tripRepository.add(_recordFromSnapshot(snapshot));
+      // Only clear if no new trip started meanwhile — that trip's own
+      // snapshot has already replaced this one.
+      if (state == MeterState.idle) await _activeTripRepository.clear();
+      return;
+    }
+
     _mode = snapshot.mode;
     _meter = _RecoveredFareMeter(
       fareWon: snapshot.fareWon,
@@ -135,10 +146,23 @@ class MeterController extends ChangeNotifier {
     _carpoolBaseFareWon = snapshot.carpoolBaseFareWon;
     _startTime = snapshot.startTime;
     _endTime = snapshot.lastUpdateTime;
+    _maxSpeedMps = (snapshot.maxSpeedKmh ?? 0) * 1000 / 3600;
     recoveredFromCrash = true;
     state = MeterState.finished;
     notifyListeners();
   }
+
+  TripRecord _recordFromSnapshot(ActiveTripSnapshot snapshot) => TripRecord(
+        id: snapshot.startTime.microsecondsSinceEpoch.toString(),
+        mode: snapshot.mode,
+        startTime: snapshot.startTime,
+        endTime: snapshot.lastUpdateTime,
+        distanceMeters: snapshot.distanceMeters,
+        fareWon: snapshot.fareWon,
+        fuelEfficiencyKmPerLiter: snapshot.fuelEfficiencyKmPerLiter,
+        fuelPricePerLiterWon: snapshot.fuelPricePerLiterWon,
+        maxSpeedKmh: snapshot.maxSpeedKmh,
+      );
 
   FareMode? get mode => _mode;
   double get distanceMeters => _meter?.totalDistanceMeters ?? 0;
@@ -267,14 +291,7 @@ class MeterController extends ChangeNotifier {
   }
 
   Future<void> _persistActiveTripSnapshot() async {
-    // Safe-driving trips aren't billed or settled, so there's nothing worth
-    // recovering after a crash.
-    if (_mode == null ||
-        _mode == FareMode.safeDriving ||
-        _startTime == null ||
-        _meter == null) {
-      return;
-    }
+    if (_mode == null || _startTime == null || _meter == null) return;
     await _activeTripRepository.save(ActiveTripSnapshot(
       mode: _mode!,
       startTime: _startTime!,
@@ -284,6 +301,7 @@ class MeterController extends ChangeNotifier {
       fuelEfficiencyKmPerLiter: _fuelEfficiencyKmPerLiter,
       fuelPricePerLiterWon: _fuelPricePerLiterWon,
       carpoolBaseFareWon: _carpoolBaseFareWon,
+      maxSpeedKmh: maxSpeedKmh,
     ));
   }
 
@@ -321,8 +339,12 @@ class MeterController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> stopTrip() async {
-    if (state != MeterState.running) return;
+  /// Ends the running trip. Safe-driving trips have no fare to settle, so
+  /// they're logged here and the saved [TripRecord] is returned; every other
+  /// mode moves to [MeterState.finished] and returns null, and is logged by
+  /// [completeSettlement] instead.
+  Future<TripRecord?> stopTrip() async {
+    if (state != MeterState.running) return null;
     _endTime = DateTime.now();
     await _positionSub?.cancel();
     _positionSub = null;
@@ -331,29 +353,50 @@ class MeterController extends ChangeNotifier {
     _currentSpeedMps = 0;
     unawaited(WakelockPlus.disable());
 
-    // Nothing to settle in safe-driving mode: skip the fare/finished screen
-    // and go straight back to idle.
+    // Nothing to settle in safe-driving mode: log the trip and go straight
+    // back to idle, skipping the fare/settlement screen.
     if (_mode == FareMode.safeDriving) {
+      final record = _buildRecord();
       _reset();
-      return;
+      if (record != null) {
+        await _tripRepository.add(record);
+        await _activeTripRepository.clear();
+      }
+      return record;
     }
 
     state = MeterState.finished;
     notifyListeners();
     unawaited(_persistActiveTripSnapshot());
+    return null;
   }
 
   /// Writes the finished trip to the local log and returns to idle.
   Future<void> completeSettlement() async {
-    if (state != MeterState.finished ||
-        _mode == null ||
+    if (state != MeterState.finished) return;
+    final record = _buildRecord();
+    if (record == null) return;
+
+    // Clear in-memory state synchronously, before the async writes below,
+    // so a snapshot-persist call still in flight from the ticker/stopTrip
+    // sees the cleared fields and no-ops instead of racing
+    // _activeTripRepository.clear() and resurrecting a settled trip.
+    _reset();
+
+    await _tripRepository.add(record);
+    await _activeTripRepository.clear();
+  }
+
+  /// The current trip as a loggable record, or null if no trip is loaded.
+  /// Must be called before [_reset] clears the trip's state.
+  TripRecord? _buildRecord() {
+    if (_mode == null ||
         _startTime == null ||
         _endTime == null ||
         _meter == null) {
-      return;
+      return null;
     }
-
-    final record = TripRecord(
+    return TripRecord(
       id: _startTime!.microsecondsSinceEpoch.toString(),
       mode: _mode!,
       startTime: _startTime!,
@@ -365,15 +408,6 @@ class MeterController extends ChangeNotifier {
       riderCount: riderCount,
       maxSpeedKmh: maxSpeedKmh,
     );
-
-    // Clear in-memory state synchronously, before the async writes below,
-    // so a snapshot-persist call still in flight from the ticker/stopTrip
-    // sees the cleared fields and no-ops instead of racing
-    // _activeTripRepository.clear() and resurrecting a settled trip.
-    _reset();
-
-    await _tripRepository.add(record);
-    await _activeTripRepository.clear();
   }
 
   void _reset() {

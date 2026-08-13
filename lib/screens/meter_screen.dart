@@ -233,7 +233,7 @@ class _MeterScreenState extends State<MeterScreen> {
                       backgroundColor: semantic.endAction,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: () => _meter.stopTrip(),
+                    onPressed: _stopTrip,
                     child: const Text('운행 종료', style: TextStyle(fontSize: 20)),
                   ),
                 ),
@@ -241,6 +241,23 @@ class _MeterScreenState extends State<MeterScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Safe-driving trips skip the settlement screen, so the only feedback that
+  /// the trip was logged is this confirmation.
+  Future<void> _stopTrip() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final record = await _meter.stopTrip();
+    if (record == null) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '운행 기록이 저장되었습니다. '
+          '${formatDistanceKm(record.distanceMeters)} · '
+          '${formatDuration(record.duration)}',
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/fare_mode.dart';
 import '../models/trip_record.dart';
 import '../services/trip_repository.dart';
 import '../theme/app_theme.dart';
@@ -123,17 +124,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   widget.tripRepository.delete(r.id);
                                 },
                                 child: ListTile(
-                                  leading: Icon(
-                                    r.mode.name == 'carpool' ? Icons.people : Icons.local_taxi,
-                                  ),
-                                  title: Text(
-                                    formatWon(r.fareWon),
-                                    style: fareTextStyle(context, fontSize: 16),
-                                  ),
-                                  subtitle: Text(
-                                    '${formatDateTime(r.startTime)} · ${formatDistanceKm(r.distanceMeters)} · ${formatDuration(r.duration)} · ${formatSpeedKmh(r.averageSpeedKmh, decimals: 1)} · ${r.mode.label}'
-                                    '${r.riderCount > 1 ? ' · ${r.riderCount}인 분할' : ''}',
-                                  ),
+                                  leading: Icon(_iconFor(r.mode)),
+                                  title: _title(context, r),
+                                  subtitle: Text(_subtitle(r)),
                                   onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (context) => TripDetailScreen(record: r),
@@ -149,6 +142,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
     );
   }
+
+  IconData _iconFor(FareMode mode) => switch (mode) {
+        FareMode.carpool => Icons.people,
+        FareMode.safeDriving => Icons.shield_outlined,
+        FareMode.standard => Icons.local_taxi,
+      };
+
+  /// Safe-driving trips have no fare, so their headline is the distance
+  /// driven rather than a meaningless 0원.
+  Widget _title(BuildContext context, TripRecord r) {
+    if (r.mode == FareMode.safeDriving) {
+      return Text(
+        formatDistanceKm(r.distanceMeters),
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          fontFeatures: [FontFeature.tabularFigures()],
+        ),
+      );
+    }
+    return Text(
+      formatWon(r.fareWon),
+      style: fareTextStyle(context, fontSize: 16),
+    );
+  }
+
+  String _subtitle(TripRecord r) => [
+        formatDateTime(r.startTime),
+        // Already the headline for safe-driving trips.
+        if (r.mode != FareMode.safeDriving) formatDistanceKm(r.distanceMeters),
+        formatDuration(r.duration),
+        formatSpeedKmh(r.averageSpeedKmh, decimals: 1),
+        r.mode.label,
+        if (r.riderCount > 1) '${r.riderCount}인 분할',
+      ].join(' · ');
 
   Widget _monthlyStatsCard(BuildContext context, List<TripRecord> records) {
     final now = DateTime.now();

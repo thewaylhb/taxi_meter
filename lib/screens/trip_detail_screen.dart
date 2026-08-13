@@ -20,10 +20,22 @@ class TripDetailScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                Text(
-                  formatWon(record.fareWon),
-                  style: fareTextStyle(context, fontSize: 40),
-                ),
+                // Safe-driving trips carry no fare, so the distance driven
+                // is the headline instead of a meaningless 0원.
+                if (record.mode == FareMode.safeDriving)
+                  Text(
+                    formatDistanceKm(record.distanceMeters),
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  )
+                else
+                  Text(
+                    formatWon(record.fareWon),
+                    style: fareTextStyle(context, fontSize: 40),
+                  ),
                 const SizedBox(height: 4),
                 Text(record.mode.label),
               ],

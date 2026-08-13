@@ -7,8 +7,9 @@ enum FareMode {
   carpool,
 
   /// No billing at all: a speed/road-info dashboard for driving safely,
-  /// not for charging a fare. Ending the trip returns straight to idle
-  /// with no settlement step and no trip-history record.
+  /// not for charging a fare. Ending the trip returns straight to idle with
+  /// no settlement step, but the trip is still written to the trip log (with
+  /// a zero fare) so the driving record isn't lost.
   safeDriving;
 
   String get label {

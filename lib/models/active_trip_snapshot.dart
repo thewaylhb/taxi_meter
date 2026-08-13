@@ -13,6 +13,11 @@ class ActiveTripSnapshot {
   final double? fuelPricePerLiterWon;
   final int? carpoolBaseFareWon;
 
+  /// Highest speed seen so far this trip, so a recovered trip keeps its
+  /// 최고속도 instead of logging a misleading 0. Null for snapshots written
+  /// before this field existed.
+  final double? maxSpeedKmh;
+
   ActiveTripSnapshot({
     required this.mode,
     required this.startTime,
@@ -22,6 +27,7 @@ class ActiveTripSnapshot {
     this.fuelEfficiencyKmPerLiter,
     this.fuelPricePerLiterWon,
     this.carpoolBaseFareWon,
+    this.maxSpeedKmh,
   });
 
   Map<String, dynamic> toJson() => {
@@ -33,6 +39,7 @@ class ActiveTripSnapshot {
         'fuelEfficiencyKmPerLiter': fuelEfficiencyKmPerLiter,
         'fuelPricePerLiterWon': fuelPricePerLiterWon,
         'carpoolBaseFareWon': carpoolBaseFareWon,
+        'maxSpeedKmh': maxSpeedKmh,
       };
 
   factory ActiveTripSnapshot.fromJson(Map<String, dynamic> json) {
@@ -49,6 +56,7 @@ class ActiveTripSnapshot {
           (json['fuelEfficiencyKmPerLiter'] as num?)?.toDouble(),
       fuelPricePerLiterWon: (json['fuelPricePerLiterWon'] as num?)?.toDouble(),
       carpoolBaseFareWon: (json['carpoolBaseFareWon'] as num?)?.toInt(),
+      maxSpeedKmh: (json['maxSpeedKmh'] as num?)?.toDouble(),
     );
   }
 }
